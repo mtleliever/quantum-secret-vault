@@ -1,0 +1,5 @@
+argon2-cffi==21.3.0
+reedsolo==1.7.0
+pqcrypto-kem-kyber==0.3.0
+cryptography==41.0.7
+stegano==0.9.3
