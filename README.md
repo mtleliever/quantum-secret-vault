@@ -35,7 +35,7 @@ A secure toolkit to split, encrypt, and hide text secrets using **quantum-resist
 
 1. **Prepare Inputs**
 
-Place lossless PNG/BMP images (one per share) in ./input_images/:
+Place lossless PNG/BMP images (one per share) in `./input_images/`:
 
   ```bash
   mkdir -p input_images vault_output  
@@ -61,7 +61,7 @@ Generated in `./vault_output/`:
 
 ## Recovery Process
 
-1. Retrieve stego images and kyber_private_keys/ from geographic vaults.
+1. Retrieve stego images and `kyber_private_keys/` from geographic vaults.
 2. Run the recovery script:
 
   ```bash
