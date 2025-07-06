@@ -5,91 +5,41 @@ Command-line interface for the quantum secret vault.
 import argparse
 import os
 import sys
+import json
+import base64
 from typing import List
-
 from .core import QuantumSecretVault, SecurityConfig, SecurityLayer
 
-def parse_arguments() -> argparse.Namespace:
-    """Parse command line arguments."""
+def parse_arguments():
     parser = argparse.ArgumentParser(
         description="Quantum-Resistant Secret Vault with Layered Security",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Basic quantum security only
-  %(prog)s --seed "word1 word2 ... word24" --passphrase "my_25th_word" --layers quantum_encryption
-
-  # Quantum + standard encryption
-  %(prog)s --seed "word1 word2 ... word24" --passphrase "my_25th_word" --layers standard_encryption quantum_encryption
-
-  # Quantum + shamir sharing (5-of-7)
-  %(prog)s --seed "word1 word2 ... word24" --passphrase "my_25th_word" --layers quantum_encryption shamir_sharing --shamir 5 7
-
-  # Full security stack
-  %(prog)s --seed "word1 word2 ... word24" --passphrase "my_25th_word" --layers standard_encryption quantum_encryption shamir_sharing steganography --shamir 5 7 --images image1.png image2.png image3.png image4.png image5.png image6.png image7.png
+  # Create vault
+  %(prog)s create --seed "word1 ... word24" --passphrase "my_25th_word" --layers standard_encryption
+  # Recover vault
+  %(prog)s recover --vault-path encrypted_seed.json --passphrase "my_25th_word"
         """
     )
-    
-    # Required arguments
-    parser.add_argument(
-        "--seed", 
-        type=str, 
-        required=True, 
-        help="BIP-39 seed phrase (24 words)"
-    )
-    parser.add_argument(
-        "--passphrase", 
-        type=str, 
-        required=True, 
-        help="BIP-39 passphrase (25th word)"
-    )
-    
-    # Security layers
-    parser.add_argument(
-        "--layers", 
-        nargs='+', 
-        choices=[layer.value for layer in SecurityLayer], 
-        default=[SecurityLayer.QUANTUM_ENCRYPTION.value], 
-        help="Security layers to apply (can combine multiple)"
-    )
-    
-    # Shamir sharing parameters
-    parser.add_argument(
-        "--shamir", 
-        nargs=2, 
-        type=int, 
-        metavar=('THRESHOLD', 'TOTAL'),
-        help="Shamir sharing parameters (e.g., 5 7)"
-    )
-    parser.add_argument(
-        "--parity", 
-        type=int, 
-        default=2, 
-        help="Reed-Solomon parity shares (default: 2)"
-    )
-    
-    # Steganography
-    parser.add_argument(
-        "--images", 
-        nargs='+', 
-        help="Image files for steganography"
-    )
-    
-    # Output
-    parser.add_argument(
-        "--output-dir", 
-        type=str, 
-        default="quantum_vault", 
-        help="Output directory (default: quantum_vault)"
-    )
-    
-    # Verbosity
-    parser.add_argument(
-        "-v", "--verbose", 
-        action="store_true", 
-        help="Verbose output"
-    )
-    
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # Create subcommand
+    create_parser = subparsers.add_parser("create", help="Create a new quantum vault")
+    create_parser.add_argument("--seed", type=str, required=True, help="BIP-39 seed phrase (24 words)")
+    create_parser.add_argument("--passphrase", type=str, required=True, help="BIP-39 passphrase (25th word)")
+    create_parser.add_argument("--layers", nargs='+', choices=[layer.value for layer in SecurityLayer], default=[SecurityLayer.QUANTUM_ENCRYPTION.value], help="Security layers to apply (can combine multiple)")
+    create_parser.add_argument("--shamir", nargs=2, type=int, metavar=('THRESHOLD', 'TOTAL'), help="Shamir sharing parameters (e.g., 5 7)")
+    create_parser.add_argument("--parity", type=int, default=2, help="Reed-Solomon parity shares (default: 2)")
+    create_parser.add_argument("--images", nargs='+', help="Image files for steganography")
+    create_parser.add_argument("--output-dir", type=str, default="quantum_vault", help="Output directory (default: quantum_vault)")
+    create_parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+
+    # Recover subcommand
+    recover_parser = subparsers.add_parser("recover", help="Recover a seed from a vault directory (AES only)")
+    recover_parser.add_argument("--vault-dir", required=True, help="Path to vault directory (containing vault_config.json)")
+    recover_parser.add_argument("--passphrase", required=True, help="Passphrase for decryption")
+
     return parser.parse_args()
 
 def validate_arguments(args: argparse.Namespace) -> None:
@@ -169,11 +119,27 @@ def create_vault(args: argparse.Namespace) -> None:
     if SecurityLayer.SHAMIR_SHARING in layers:
         print(f"[!] Distribute shares geographically for maximum security")
 
+def recover_vault(args: argparse.Namespace) -> None:
+    # AES-only recovery using QuantumSecretVault static method
+    try:
+        seed = QuantumSecretVault.recover_vault(args.vault_dir, args.passphrase)
+        print("[+] Decryption successful! Recovered seed phrase:")
+        print(seed)
+    except Exception as e:
+        print(f"[!] Decryption failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
 def main():
     """Main entry point."""
     try:
         args = parse_arguments()
-        create_vault(args)
+        if getattr(args, "command", None) == "create":
+            create_vault(args)
+        elif getattr(args, "command", None) == "recover":
+            recover_vault(args)
+        else:
+            print("[!] Unknown command.", file=sys.stderr)
+            sys.exit(1)
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

@@ -1,49 +1,64 @@
 # Quantum Secret Vault - PowerShell Runner
-# Usage: .\run.ps1 "seed phrase" "passphrase" [layers...]
-# Example: .\run.ps1 "word1 ... word24" "passphrase" standard_encryption
+# Usage:
+#   .\run.ps1 create "seed phrase" "passphrase" [layers...]
+#   .\run.ps1 recover <vault_dir> <passphrase>
+# Example:
+#   .\run.ps1 create "word1 ... word24" "passphrase" standard_encryption
+#   .\run.ps1 recover vault_output "passphrase"
+
 param(
     [Parameter(Mandatory=$true, Position=0)]
-    [string]$Seed,
-    [Parameter(Mandatory=$true, Position=1)]
-    [string]$Passphrase,
-    [Parameter(ValueFromRemainingArguments=$true, Position=2)]
-    [string[]]$Layers
+    [string]$Mode,
+    [Parameter(ValueFromRemainingArguments=$true, Position=1)]
+    [string[]]$Args
 )
 
-# Build the Docker image
+# Build the Docker image if needed
 Write-Host "Building Docker image..."
 docker build -t quantum-secret-vault:latest .
 
-# Run the vault creation
-Write-Host "Running vault creation..."
-
-# Set the absolute path for vault_output
-$VaultOutput = Join-Path $PSScriptRoot "vault_output"
-
-# Build layers argument as an array
-$layersArg = @()
-foreach ($layer in $Layers) {
-    $layersArg += @('--layers', $layer)
-}
-
-Write-Host "Creating quantum vault with layers: $($Layers -join ' ')"
-Write-Host "Seed: $Seed"
-Write-Host "Passphrase: $Passphrase"
-
-# Create output directory if it doesn't exist
-if (-not (Test-Path $VaultOutput)) {
-    New-Item -ItemType Directory -Path $VaultOutput | Out-Null
-}
-
-# Run the vault creation directly with Python (bypassing entrypoint)
-docker run --rm -it `
-  -v "${VaultOutput}:/output/" `
-  --entrypoint="" `
-  quantum-secret-vault:latest `
-  python3 -m src.cli `
-  --seed "$Seed" `
-  --passphrase "$Passphrase" `
-  @layersArg `
-  --output-dir /output
-
-Write-Host "Vault created in vault_output/ directory" 
+if ($Mode -eq "recover") {
+    if ($Args.Count -lt 2) {
+        Write-Host "Usage: .\run.ps1 recover <vault_dir> <passphrase>"
+        exit 1
+    }
+    $VaultDir = $Args[0]
+    $Passphrase = $Args[1]
+    Write-Host "Running vault recovery..."
+    docker run --rm -it `
+      -v "${PWD}/${VaultDir}:/vault/" `
+      --entrypoint="" `
+      quantum-secret-vault:latest `
+      python3 -m src.cli recover `
+      --vault-dir /vault `
+      --passphrase "$Passphrase"
+} else {
+    if ($Args.Count -lt 2) {
+        Write-Host "Usage: .\run.ps1 create <seed> <passphrase> [layers...]"
+        exit 1
+    }
+    $Seed = $Args[0]
+    $Passphrase = $Args[1]
+    $Layers = $Args[2..($Args.Count-1)]
+    $layersArg = @()
+    foreach ($layer in $Layers) {
+        $layersArg += @('--layers', $layer)
+    }
+    Write-Host "Creating quantum vault with layers: $($Layers -join ' ')"
+    Write-Host "Seed: $Seed"
+    Write-Host "Passphrase: $Passphrase"
+    $VaultOutput = Join-Path $PSScriptRoot "vault_output"
+    if (-not (Test-Path $VaultOutput)) {
+        New-Item -ItemType Directory -Path $VaultOutput | Out-Null
+    }
+    docker run --rm -it `
+      -v "${VaultOutput}:/output/" `
+      --entrypoint="" `
+      quantum-secret-vault:latest `
+      python3 -m src.cli create `
+      --seed "$Seed" `
+      --passphrase "$Passphrase" `
+      @layersArg `
+      --output-dir /output
+    Write-Host "Vault created in vault_output/ directory"
+} 

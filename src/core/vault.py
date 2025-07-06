@@ -5,8 +5,9 @@ Main vault class implementing layered security.
 import os
 import json
 import datetime
+import base64
+import cbor2
 from typing import List, Dict, Any, Optional
-
 from ..security.standard_encryption import StandardEncryption
 # from ..security.quantum_encryption import QuantumEncryption  # Commented out - liboqs dependency issues
 from ..security.shamir_sharing import ShamirSharing
@@ -136,33 +137,56 @@ class QuantumSecretVault:
                     if self.stego.embed_data(share_file, images[i], stego_file):
                         vault_info["files_created"].append(stego_file)
         else:
-            # Single encrypted file
-            encrypted_file = f"{output_dir}/encrypted_seed.json"
-            with open(encrypted_file, 'w') as f:
-                json.dump({
-                    "encrypted_data": result["encrypted_data"],
-                    "encryption_info": result["encryption_info"]
-                }, f, indent=2)
-            vault_info["files_created"].append(encrypted_file)
-            
+            # Single encrypted file (CBOR binary)
+            vault_bin_file = f"{output_dir}/vault.bin"
+            cbor_data = {
+                "layers": [layer.value for layer in self.config.layers],
+                "standard_encryption": json.loads(result["encrypted_data"])
+            }
+            with open(vault_bin_file, 'wb') as f:
+                cbor2.dump(cbor_data, f)
+            vault_info["files_created"].append(vault_bin_file)
             # Add steganography if enabled
             if self.config.has_layer(SecurityLayer.STEGANOGRAPHY) and images:
-                stego_file = f"{output_dir}/stego_images/encrypted_seed.png"
-                if self.stego.embed_data(encrypted_file, images[0], stego_file):
+                stego_file = f"{output_dir}/stego_images/vault.bin.png"
+                if self.stego.embed_data(vault_bin_file, images[0], stego_file):
                     vault_info["files_created"].append(stego_file)
-        
-        # Save vault configuration
-        config_file = f"{output_dir}/vault_config.json"
-        with open(config_file, 'w') as f:
-            json.dump({
-                "layers": [layer.value for layer in self.config.layers],
-                "shamir_config": {
-                    "threshold": self.config.shamir_threshold,
-                    "total": self.config.shamir_total,
-                    "parity": self.config.parity_shares
-                } if self.config.has_layer(SecurityLayer.SHAMIR_SHARING) else None,
-                "created_timestamp": str(datetime.datetime.now())
-            }, f, indent=2)
-        vault_info["files_created"].append(config_file)
-        
-        return vault_info 
+        # Save vault configuration (only if Shamir for now)
+        if self.config.has_layer(SecurityLayer.SHAMIR_SHARING):
+            config_file = f"{output_dir}/vault_config.json"
+            with open(config_file, 'w') as f:
+                json.dump({
+                    "layers": [layer.value for layer in self.config.layers],
+                    "shamir_config": {
+                        "threshold": self.config.shamir_threshold,
+                        "total": self.config.shamir_total,
+                        "parity": self.config.parity_shares
+                    },
+                    "created_timestamp": str(datetime.datetime.now())
+                }, f, indent=2)
+            vault_info["files_created"].append(config_file)
+        return vault_info
+
+    @staticmethod
+    def recover_vault(vault_dir: str, passphrase: str) -> str:
+        """
+        Recover the original seed phrase from a vault directory using the provided passphrase.
+        Currently supports only standard_encryption (AES) with CBOR vault.bin.
+        """
+
+        vault_bin_path = os.path.join(vault_dir, "vault.bin")
+        if not os.path.exists(vault_bin_path):
+            raise FileNotFoundError(f"vault.bin not found in {vault_dir}")
+        with open(vault_bin_path, "rb") as f:
+            cbor_data = cbor2.load(f)
+        layers = cbor_data.get("layers", [])
+        if not layers:
+            raise ValueError("No layers found in vault.bin")
+        # Only support standard_encryption for now
+        if layers == ["standard_encryption"]:
+            enc = cbor_data["standard_encryption"]
+            salt = base64.b64decode(enc["salt"])
+            se = StandardEncryption(passphrase, salt=salt)
+            return se.decrypt(enc).decode()
+        # TODO: Add support for Shamir, quantum, steganography, etc.
+        raise NotImplementedError(f"Recovery for layers {layers} is not yet implemented.") 
