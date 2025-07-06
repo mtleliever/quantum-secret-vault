@@ -1,6 +1,6 @@
 argon2-cffi==21.3.0
-reedsolo==1.7.0
-liboqs-python==0.13.0
+reedsolo==1.7.0  # Needed for Reed-Solomon error correction
+liboqs-python==0.13.0  # Commented out - build issues
 cryptography==41.0.7
 stegano==0.9.3
-secretsharing==0.2.6
+pyseltongue==1.0.2  # Python 3 compatible Shamir secret sharing

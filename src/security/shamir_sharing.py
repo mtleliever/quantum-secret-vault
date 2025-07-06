@@ -3,7 +3,7 @@ Shamir Secret Sharing with Reed-Solomon error correction.
 """
 
 from typing import List
-from secretsharing import SecretSharer
+from pyseltongue import SecretSharer
 from reedsolo import RSCodec
 
 class ShamirSharing:

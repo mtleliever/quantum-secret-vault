@@ -190,14 +190,51 @@ steghide extract -sf share_0.png -p "QuantumVault2024!" -xf share_0.json
 
 ---
 
+## 🧪 Testing
+
+### **Quick Test**
+```bash
+# Run basic functionality tests
+python run_tests.py
+```
+
+### **Docker Testing**
+```bash
+# Run tests in Docker container
+chmod +x test_docker.sh
+./test_docker.sh
+```
+
+### **Comprehensive Testing**
+```bash
+# Install test dependencies
+pip install -r tests/requirements.txt
+
+# Run full test suite with pytest
+pytest tests/ -v
+
+# Run with coverage report
+pytest tests/ --cov=src --cov-report=html
+```
+
+### **Test Coverage**
+- ✅ **AES-256-GCM Encryption**: Key derivation, encryption/decryption, data integrity
+- ✅ **Shamir Secret Sharing**: Threshold recovery, error correction, share validation
+- ✅ **Vault Integration**: Complete workflow testing, file structure validation
+- ✅ **Error Handling**: Invalid inputs, corrupted data, edge cases
+
+See [tests/README.md](tests/README.md) for detailed testing information.
+
+---
+
 ## 🔧 Technical Details
 
 ### **Dependencies**
-- **liboqs-python**: Post-quantum cryptography
 - **cryptography**: Standard encryption (AES, PBKDF2)
 - **secretsharing**: Shamir secret sharing
 - **reedsolo**: Reed-Solomon error correction
-- **steghide**: Steganography
+- **stegano**: Steganography (Python library)
+- **pytest**: Testing framework (optional)
 - **argon2-cffi**: Password hashing
 
 ### **Cryptographic Standards**

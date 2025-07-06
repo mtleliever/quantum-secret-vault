@@ -1,2 +1,2 @@
 #!/bin/bash
-docker build -t quantum-vault:1.0 .
+docker build -t quantum-secret-vault:latest .

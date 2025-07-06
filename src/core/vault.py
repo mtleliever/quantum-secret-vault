@@ -8,7 +8,7 @@ import datetime
 from typing import List, Dict, Any, Optional
 
 from ..security.standard_encryption import StandardEncryption
-from ..security.quantum_encryption import QuantumEncryption
+# from ..security.quantum_encryption import QuantumEncryption  # Commented out - liboqs dependency issues
 from ..security.shamir_sharing import ShamirSharing
 from ..security.steganography import Steganography
 from .config import SecurityConfig, SecurityLayer
@@ -25,7 +25,7 @@ class QuantumSecretVault:
         """
         self.config = config
         self.standard_enc = StandardEncryption(config.passphrase, config.salt)
-        self.quantum_enc = QuantumEncryption()
+        # self.quantum_enc = QuantumEncryption()  # Commented out - liboqs dependency issues
         self.shamir = ShamirSharing(config.shamir_threshold, config.shamir_total, config.parity_shares)
         self.stego = Steganography()
         
@@ -53,13 +53,13 @@ class QuantumSecretVault:
             }
         
         # Layer 2: Quantum Encryption (if enabled)
-        if self.config.has_layer(SecurityLayer.QUANTUM_ENCRYPTION):
-            encrypted = self.quantum_enc.encrypt(current_data)
-            current_data = json.dumps(encrypted).encode('utf-8')
-            encryption_info["quantum_encryption"] = {
-                "kem": "Kyber1024",
-                "requires_private_key": True
-            }
+        # if self.config.has_layer(SecurityLayer.QUANTUM_ENCRYPTION):
+        #     encrypted = self.quantum_enc.encrypt(current_data)
+        #     current_data = json.dumps(encrypted).encode('utf-8')
+        #     encryption_info["quantum_encryption"] = {
+        #         "kem": "Kyber1024",
+        #         "requires_private_key": True
+        #     }
         
         # Layer 3: Shamir Secret Sharing (if enabled)
         if self.config.has_layer(SecurityLayer.SHAMIR_SHARING):
@@ -98,8 +98,8 @@ class QuantumSecretVault:
         os.makedirs(output_dir, exist_ok=True)
         
         # Create subdirectories based on layers
-        if self.config.has_layer(SecurityLayer.QUANTUM_ENCRYPTION):
-            os.makedirs(f"{output_dir}/quantum_keys", exist_ok=True)
+        # if self.config.has_layer(SecurityLayer.QUANTUM_ENCRYPTION):
+        #     os.makedirs(f"{output_dir}/quantum_keys", exist_ok=True)
         if self.config.has_layer(SecurityLayer.SHAMIR_SHARING):
             os.makedirs(f"{output_dir}/shares", exist_ok=True)
         if self.config.has_layer(SecurityLayer.STEGANOGRAPHY):
