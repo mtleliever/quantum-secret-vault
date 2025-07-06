@@ -9,7 +9,7 @@ echo "🐳 Running Quantum Secret Vault tests in Docker..."
 echo "📦 Building Docker image..."
 docker build -t quantum-secret-vault:latest .
 
-# Run tests in container (bypass entrypoint)
+# Run tests in container
 echo "🧪 Running tests in Docker container..."
 docker run --rm --entrypoint="" quantum-secret-vault:latest python3 run_tests.py
 

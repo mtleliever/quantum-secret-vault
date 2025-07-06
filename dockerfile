@@ -33,6 +33,9 @@ COPY run_tests.py /app/
 # Install Python dependencies
 RUN pip3 install -r /app/src/requirements.txt
 
+# Install test dependencies
+RUN pip3 install -r /app/tests/requirements.txt
+
 # Set Python path
 ENV PYTHONPATH=/app:/app/src
 
