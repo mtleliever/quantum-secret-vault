@@ -186,29 +186,11 @@ steghide extract -sf share_0.png -p "QuantumVault2024!" -xf share_0.json
 
 ## 🧪 Testing
 
-### **Quick Test**
-```bash
-# Run basic functionality tests
-python run_tests.py
-```
-
 ### **Docker Testing**
 ```bash
 # Run tests in Docker container
-chmod +x test_docker.sh
-./test_docker.sh
-```
-
-### **Comprehensive Testing**
-```bash
-# Install test dependencies
-pip install -r tests/requirements.txt
-
-# Run full test suite with pytest
-pytest tests/ -v
-
-# Run with coverage report
-pytest tests/ --cov=src --cov-report=html
+chmod +x test.sh
+./test.sh
 ```
 
 ### **Test Coverage**
@@ -248,7 +230,3 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## 🤝 Contributing
 
 Contributions welcome! Please see our contributing guidelines for details.
-
----
-
-*Built with ❤️ for maximum security and flexibility*
