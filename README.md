@@ -40,44 +40,38 @@ The vault supports **4 security layers** that can be combined in any order:
 
 ## 🚀 Quick Start
 
-### 1. **Build the Docker Image**
-```bash
-chmod +x build.sh run.sh
-./build.sh  # Builds 'quantum-vault:1.0' image
-```
-
-### 2. **Prepare Your Data**
-```bash
-mkdir -p input_images vault_output
-# Add your cover images for steganography (if using that layer)
-cp ~/my_images/*.png input_images/
-```
-
-### 3. **Create Vaults with Different Security Levels**
+### 1. **Create Vaults with Different Security Levels**
 
 #### **Basic Quantum Security Only**
 ```bash
-./run.sh "word1 word2 ... word24" "my_25th_word" "quantum_encryption"
+./run.sh create "word1 word2 ... word24" "password" "quantum_encryption"
 ```
 *Output: Single quantum-encrypted file*
 
 #### **Quantum + Standard Encryption**
 ```bash
-./run.sh "word1 word2 ... word24" "my_25th_word" "standard_encryption" "quantum_encryption"
+./run.sh create "word1 word2 ... word24" "password" "standard_encryption" "quantum_encryption"
 ```
 *Output: Double-encrypted file (AES + Kyber)*
 
 #### **Quantum + Shamir Sharing**
 ```bash
-./run.sh "word1 word2 ... word24" "my_25th_word" "quantum_encryption" "shamir_sharing" 5 7
+./run.sh create "word1 word2 ... word24" "password" "quantum_encryption" "shamir_sharing" 5 7
 ```
 *Output: 7 quantum-encrypted shares (need 5 to recover)*
 
 #### **Full Security Stack**
 ```bash
-./run.sh "word1 word2 ... word24" "my_25th_word" "standard_encryption" "quantum_encryption" "shamir_sharing" "steganography" 5 7 image1.png image2.png image3.png image4.png image5.png image6.png image7.png
+./run.sh create "word1 word2 ... word24" "password" "standard_encryption" "quantum_encryption" "shamir_sharing" "steganography" 5 7 image1.png image2.png image3.png image4.png image5.png image6.png image7.png
 ```
 *Output: 7 stego images with hidden encrypted shares*
+
+
+### 2. **Recover Vault**
+```bash
+./run.sh recover folder_name_containing_vault_files "password"
+```
+*Output: The originally secured seedphrase*
 
 ---
 
