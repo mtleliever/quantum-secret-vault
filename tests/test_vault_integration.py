@@ -2,9 +2,7 @@
 Integration tests for the complete vault functionality.
 """
 
-import pytest
 import os
-import json
 import cbor2
 from src.core import QuantumSecretVault, SecurityConfig, SecurityLayer
 
