@@ -22,7 +22,10 @@ class SecurityConfig:
     parity_shares: int = 2
     passphrase: str = ""
     salt: bytes = b""
-    pbkdf2_iterations: int = 2000000  # Very high security default for personal crypto seeds
+    # Argon2id parameters (more secure than PBKDF2)
+    argon2_memory_cost: int = 524288   # 512 MiB memory usage (high security for crypto seeds)
+    argon2_time_cost: int = 5          # 5 iterations (higher security)
+    argon2_parallelism: int = 1        # Single thread
     
     def has_layer(self, layer: SecurityLayer) -> bool:
         """Check if a specific security layer is enabled"""

@@ -1,39 +1,45 @@
 """
-Standard encryption using AES-256-GCM with PBKDF2 key derivation.
+Standard encryption using AES-256-GCM with Argon2id key derivation.
 """
 
 import os
 import base64
 from typing import Dict, Any, Optional
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.primitives import hashes
+from argon2.low_level import Type, hash_secret_raw
 
 class StandardEncryption:
-    """Standard AES-256-GCM encryption with PBKDF2 key derivation"""
+    """Standard AES-256-GCM encryption with Argon2id key derivation"""
     
-    def __init__(self, passphrase: str, salt: Optional[bytes] = None, iterations: int = 2000000):
+    def __init__(self, passphrase: str, salt: Optional[bytes] = None, 
+                 memory_cost: int = 524288, time_cost: int = 5, parallelism: int = 1):
         """
         Initialize standard encryption.
         
         Args:
             passphrase: The passphrase to derive the key from
             salt: Optional salt for key derivation (generated if not provided)
-            iterations: PBKDF2 iteration count (default: 2M for very high security)
+            memory_cost: Memory usage in KiB (default: 512 MiB for crypto seed security)
+            time_cost: Number of iterations (default: 5)
+            parallelism: Number of parallel threads (default: 1)
         """
         self.passphrase = passphrase
         self.salt = salt or os.urandom(32)
-        self.iterations = iterations
+        self.memory_cost = memory_cost  # 512 MiB default
+        self.time_cost = time_cost      # 5 iterations default
+        self.parallelism = parallelism  # 1 thread default
         
     def derive_key(self) -> bytes:
-        """Derive AES key using PBKDF2 with configurable iteration count"""
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,  # 256-bit key
+        """Derive AES key using Argon2id with configurable parameters"""
+        return hash_secret_raw(
+            secret=self.passphrase.encode('utf-8'),
             salt=self.salt,
-            iterations=self.iterations,  # Configurable iteration count
+            time_cost=self.time_cost,
+            memory_cost=self.memory_cost,
+            parallelism=self.parallelism,
+            hash_len=32,  # 256-bit key
+            type=Type.ID  # Argon2id variant (recommended)
         )
-        return kdf.derive(self.passphrase.encode('utf-8'))
     
     def encrypt(self, data: bytes) -> Dict[str, Any]:
         """
@@ -55,8 +61,10 @@ class StandardEncryption:
             "salt": base64.b64encode(self.salt).decode('utf-8'),
             "nonce": base64.b64encode(nonce).decode('utf-8'),
             "ciphertext": base64.b64encode(ciphertext).decode('utf-8'),
-            "kdf": "PBKDF2-HMAC-SHA256",
-            "iterations": str(self.iterations)
+            "kdf": "Argon2id",
+            "memory_cost": str(self.memory_cost),
+            "time_cost": str(self.time_cost),
+            "parallelism": str(self.parallelism)
         }
     
     def decrypt(self, encrypted_data: Dict[str, Any]) -> bytes:

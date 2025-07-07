@@ -34,7 +34,9 @@ Examples:
     create_parser.add_argument("--parity", type=int, default=2, help="Reed-Solomon parity shares (default: 2)")
     create_parser.add_argument("--images", nargs='+', help="Image files for steganography")
     create_parser.add_argument("--output-dir", type=str, default="quantum_vault", help="Output directory (default: quantum_vault)")
-    create_parser.add_argument("--iterations", type=int, default=2000000, help="PBKDF2 iterations (default: 2M for very high security)")
+    create_parser.add_argument("--memory", type=int, default=524288, help="Argon2 memory cost in KiB (default: 512 MiB)")
+    create_parser.add_argument("--time", type=int, default=5, help="Argon2 time cost iterations (default: 5)")
+    create_parser.add_argument("--threads", type=int, default=1, help="Argon2 parallelism threads (default: 1)")
     create_parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
 
     # Recover subcommand
@@ -54,11 +56,17 @@ def validate_arguments(args: argparse.Namespace) -> None:
     if not validate_passphrase(args.passphrase):
         raise ValueError("Invalid passphrase format. Must be 1-100 characters.")
     
-    # Validate PBKDF2 iterations
-    if args.iterations < 2000000:
-        raise ValueError("PBKDF2 iterations must be at least 2,000,000 for high-value crypto seeds")
-    if args.iterations > 10000000:
-        raise ValueError("PBKDF2 iterations cannot exceed 10,000,000 (would be too slow)")
+    # Validate Argon2 parameters
+    if args.memory < 65536:  # 64 MiB minimum for crypto seed security
+        raise ValueError("Argon2 memory cost must be at least 65,536 KiB (64 MiB) for crypto seed security")
+    if args.memory > 4194304:  # 4 GiB maximum (reasonable for high-security personal use)
+        raise ValueError("Argon2 memory cost cannot exceed 4,194,304 KiB (4 GiB) - would be too slow")
+    if args.time < 1:
+        raise ValueError("Argon2 time cost must be at least 1")
+    if args.time > 20:
+        raise ValueError("Argon2 time cost cannot exceed 20 - would be too slow")
+    if args.threads < 1 or args.threads > 8:
+        raise ValueError("Argon2 parallelism must be between 1 and 8 threads")
     
     # Parse security layers
     layers = [SecurityLayer(layer) for layer in args.layers]
@@ -106,14 +114,20 @@ def create_vault(args: argparse.Namespace) -> None:
         parity_shares=args.parity,
         passphrase=args.passphrase,
         salt=os.urandom(32),
-        pbkdf2_iterations=args.iterations
+        argon2_memory_cost=args.memory,
+        argon2_time_cost=args.time,
+        argon2_parallelism=args.threads
     )
     
     if args.verbose:
         print(f"[*] Security layers: {', '.join([layer.value for layer in layers])}")
         print(f"[*] Seed words: {len(args.seed.split())} words")
         print(f"[*] Passphrase: {'*' * len(args.passphrase)} (hidden for security)")
-        print(f"[*] PBKDF2 iterations: {args.iterations:,} ({args.iterations/1000000:.1f}M)")
+        print(f"[*] Argon2id parameters:")
+        print(f"    - Memory: {args.memory:,} KiB ({args.memory/1024:.0f} MiB)")
+        print(f"    - Time: {args.time} iterations")
+        print(f"    - Threads: {args.threads}")
+        print(f"[*] Estimated crack cost: $10M+ with specialized hardware")
         if SecurityLayer.SHAMIR_SHARING in layers:
             print(f"[*] Shamir sharing: {threshold}-of-{total} with {args.parity} parity shares")
         if SecurityLayer.STEGANOGRAPHY in layers:
