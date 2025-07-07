@@ -1,16 +1,16 @@
 #!/bin/bash
 
 # Create output directory if missing
-mkdir -p /output/stego_images /output/encrypted_shares /output/kyber_private_keys
+mkdir -p /output
 
-# Execute the Python script with mounted volumes
-python3 /app/quantum_seed_vault.py \
+# Execute the Python script with mounted volumes and layered security arguments
+python3 -m src.cli \
   --seed "$SEED" \
-  --images "${IMAGES[@]}" \
-  --shares $SHAMIR_THRESHOLD $SHAMIR_TOTAL \
-  --parity $PARITY \
-  --output-dir /output \
-  --passphrase "$PASSPHRASE"
+  --passphrase "$PASSPHRASE" \
+  $LAYERS \
+  $SHAMIR_PARAMS \
+  $IMAGES_ARG \
+  --output-dir /output
 
 # Fix permissions for host access
 chown -R 1000:1000 /output
