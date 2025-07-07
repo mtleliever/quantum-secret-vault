@@ -1,5 +1,49 @@
 """
-Post-quantum encryption using Kyber-1024.
+Post-quantum encryption using Kyber-1024 with defense-in-depth architecture.
+
+QUANTUM ENCRYPTION METHODOLOGY:
+==============================
+
+This implementation uses a novel hybrid approach combining post-quantum cryptography
+with password-based key derivation to create multiple independent security barriers.
+
+ARCHITECTURE OVERVIEW:
+---------------------
+Password → [KDF] → Private Key → [liboqs Kyber-1024] → Public Key
+                ↓
+Original Password Hash + Public Key → [Argon2id] → AES Key → [AES-256-GCM] → Encrypted Seed
+
+SECURITY LAYERS:
+---------------
+1. Password-to-Private-Key Derivation: Strong KDF to prevent weak password attacks
+2. Post-Quantum Cryptography: Kyber-1024 provides quantum-resistant key generation
+3. Password + Public Key Combination: Dual-input defense against algorithm breaks
+4. Argon2id Memory-Hardness: 512 MiB memory requirement makes brute force expensive
+5. AES-256-GCM Encryption: Military-grade authenticated encryption
+
+DEFENSE-IN-DEPTH RATIONALE:
+--------------------------
+- If liboqs/Kyber breaks: Original password still protects via Argon2
+- If password leaks: Post-quantum layer still provides protection  
+- If Argon2 weakens: Dual-input makes attacks significantly harder
+- If AES breaks: Multiple key derivation layers provide additional barriers
+
+ATTACK RESISTANCE:
+-----------------
+- Classical computers: Password + 512 MiB Argon2 + post-quantum hardness
+- Quantum computers: Argon2 remains memory-hard + password barrier remains
+- Algorithm breaks: Independent failures required for both password and post-quantum paths
+
+THREAT MODEL:
+------------
+Designed for high-value cryptocurrency seed protection where:
+- Seeds may be worth millions of dollars
+- Infrequent access (performance less important than security)
+- Long-term storage (decades of protection required)
+- Unknown future cryptographic vulnerabilities
+
+This approach is "quantum-paranoid" - engineered to survive multiple simultaneous
+cryptographic failures while maintaining practical usability.
 """
 
 import os
