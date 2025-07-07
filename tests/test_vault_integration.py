@@ -43,8 +43,12 @@ class TestVaultIntegration:
         assert "salt" in enc_data
         assert "nonce" in enc_data
         assert "ciphertext" in enc_data
-        assert "iterations" in enc_data
+        assert "kdf" in enc_data
+        assert "memory_cost" in enc_data
+        assert "time_cost" in enc_data
+        assert "parallelism" in enc_data
         assert enc_data["encryption_type"] == "AES-256-GCM"
+        assert enc_data["kdf"] == "Argon2id"
     
     def test_vault_no_config_file_for_standard_encryption(self, temp_dir, sample_seed, sample_passphrase):
         """Test that no vault configuration file is created for standard encryption only."""

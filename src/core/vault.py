@@ -26,7 +26,13 @@ class QuantumSecretVault:
             config: Security configuration with layers and parameters
         """
         self.config = config
-        self.standard_enc = StandardEncryption(config.passphrase, config.salt, config.pbkdf2_iterations)
+        self.standard_enc = StandardEncryption(
+            config.passphrase, 
+            config.salt, 
+            config.argon2_memory_cost,
+            config.argon2_time_cost,
+            config.argon2_parallelism
+        )
         # self.quantum_enc = QuantumEncryption()  # Commented out - liboqs dependency issues
         self.shamir = ShamirSharing(config.shamir_threshold, config.shamir_total, config.parity_shares)
         self.stego = Steganography()
@@ -51,7 +57,9 @@ class QuantumSecretVault:
             encryption_info["standard_encryption"] = {
                 "salt": encrypted["salt"],
                 "kdf": encrypted["kdf"],
-                "iterations": encrypted["iterations"]
+                "memory_cost": encrypted["memory_cost"],
+                "time_cost": encrypted["time_cost"],
+                "parallelism": encrypted["parallelism"]
             }
         
         # Layer 2: Quantum Encryption (if enabled)
@@ -203,7 +211,17 @@ class QuantumSecretVault:
             try:
                 enc = cbor_data["standard_encryption"]
                 salt = base64.b64decode(enc["salt"])
-                se = StandardEncryption(passphrase, salt=salt)
+                
+                # Extract Argon2id parameters
+                memory_cost = int(enc.get("memory_cost", 524288))
+                time_cost = int(enc.get("time_cost", 5))
+                parallelism = int(enc.get("parallelism", 1))
+                
+                se = StandardEncryption(passphrase, salt=salt, 
+                                      memory_cost=memory_cost, 
+                                      time_cost=time_cost, 
+                                      parallelism=parallelism)
+                
                 return se.decrypt(enc).decode()
             except Exception as e:
                 raise ValueError(f"Decryption failed: {e}")

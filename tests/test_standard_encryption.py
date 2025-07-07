@@ -22,19 +22,28 @@ class TestStandardEncryption:
         enc = StandardEncryption(sample_passphrase, custom_salt)
         assert enc.salt == custom_salt
     
-    def test_initialization_with_custom_iterations(self, sample_passphrase):
-        """Test StandardEncryption initialization with custom iterations."""
-        custom_iterations = 2000000
-        enc = StandardEncryption(sample_passphrase, iterations=custom_iterations)
-        assert enc.iterations == custom_iterations
+    def test_initialization_with_custom_argon2_params(self, sample_passphrase):
+        """Test StandardEncryption initialization with custom Argon2 parameters."""
+        memory_cost = 32768  # 32 MiB
+        time_cost = 2
+        parallelism = 1
+        enc = StandardEncryption(sample_passphrase, 
+                              memory_cost=memory_cost, 
+                              time_cost=time_cost, 
+                              parallelism=parallelism)
+        assert enc.memory_cost == memory_cost
+        assert enc.time_cost == time_cost
+        assert enc.parallelism == parallelism
         
-        # Test that encryption uses the custom iterations
+        # Test that encryption uses the custom parameters
         data = b"test data"
         encrypted = enc.encrypt(data)
-        assert encrypted["iterations"] == str(custom_iterations)
+        assert encrypted["memory_cost"] == str(memory_cost)
+        assert encrypted["time_cost"] == str(time_cost)
+        assert encrypted["parallelism"] == str(parallelism)
     
     def test_key_derivation(self, sample_passphrase):
-        """Test PBKDF2 key derivation."""
+        """Test Argon2id key derivation."""
         enc = StandardEncryption(sample_passphrase)
         key = enc.derive_key()
         
@@ -52,8 +61,10 @@ class TestStandardEncryption:
         
         # Verify encryption structure
         assert encrypted["encryption_type"] == "AES-256-GCM"
-        assert encrypted["kdf"] == "PBKDF2-HMAC-SHA256"
-        assert encrypted["iterations"] == "2000000"  # 2M default for personal crypto seeds
+        assert encrypted["kdf"] == "Argon2id"
+        assert encrypted["memory_cost"] == "524288"  # 512 MiB default
+        assert encrypted["time_cost"] == "5"  # 5 iterations default
+        assert encrypted["parallelism"] == "1"  # 1 thread default
         assert "salt" in encrypted
         assert "nonce" in encrypted
         assert "ciphertext" in encrypted
