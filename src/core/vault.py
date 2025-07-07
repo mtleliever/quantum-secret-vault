@@ -13,6 +13,7 @@ from ..security.standard_encryption import StandardEncryption
 from ..security.shamir_sharing import ShamirSharing
 from ..security.steganography import Steganography
 from .config import SecurityConfig, SecurityLayer
+from ..utils.file_utils import set_secure_permissions
 
 class QuantumSecretVault:
     """Main vault class implementing layered security"""
@@ -25,7 +26,7 @@ class QuantumSecretVault:
             config: Security configuration with layers and parameters
         """
         self.config = config
-        self.standard_enc = StandardEncryption(config.passphrase, config.salt)
+        self.standard_enc = StandardEncryption(config.passphrase, config.salt, config.pbkdf2_iterations)
         # self.quantum_enc = QuantumEncryption()  # Commented out - liboqs dependency issues
         self.shamir = ShamirSharing(config.shamir_threshold, config.shamir_total, config.parity_shares)
         self.stego = Steganography()
@@ -97,6 +98,8 @@ class QuantumSecretVault:
             Dictionary with vault creation information
         """
         os.makedirs(output_dir, exist_ok=True)
+        # Set secure permissions on output directory
+        os.chmod(output_dir, 0o700)
         
         # Create subdirectories based on layers
         # if self.config.has_layer(SecurityLayer.QUANTUM_ENCRYPTION):
@@ -143,9 +146,14 @@ class QuantumSecretVault:
                 "layers": [layer.value for layer in self.config.layers],
                 "standard_encryption": json.loads(result["encrypted_data"])
             }
-            with open(vault_bin_file, 'wb') as f:
-                cbor2.dump(cbor_data, f)
-            vault_info["files_created"].append(vault_bin_file)
+            try:
+                with open(vault_bin_file, 'wb') as f:
+                    cbor2.dump(cbor_data, f)
+                # Set secure permissions on vault file
+                set_secure_permissions(vault_bin_file)
+                vault_info["files_created"].append(vault_bin_file)
+            except Exception as e:
+                raise IOError(f"Failed to create vault file: {e}")
             # Add steganography if enabled
             if self.config.has_layer(SecurityLayer.STEGANOGRAPHY) and images:
                 stego_file = f"{output_dir}/stego_images/vault.bin.png"
@@ -173,20 +181,32 @@ class QuantumSecretVault:
         Recover the original seed phrase from a vault directory using the provided passphrase.
         Currently supports only standard_encryption (AES) with CBOR vault.bin.
         """
-
+        if not vault_dir or not os.path.exists(vault_dir):
+            raise FileNotFoundError(f"Vault directory not found: {vault_dir}")
+        
         vault_bin_path = os.path.join(vault_dir, "vault.bin")
         if not os.path.exists(vault_bin_path):
             raise FileNotFoundError(f"vault.bin not found in {vault_dir}")
-        with open(vault_bin_path, "rb") as f:
-            cbor_data = cbor2.load(f)
+        
+        try:
+            with open(vault_bin_path, "rb") as f:
+                cbor_data = cbor2.load(f)
+        except Exception as e:
+            raise ValueError(f"Failed to read vault data: {e}")
+        
         layers = cbor_data.get("layers", [])
         if not layers:
             raise ValueError("No layers found in vault.bin")
+        
         # Only support standard_encryption for now
         if layers == ["standard_encryption"]:
-            enc = cbor_data["standard_encryption"]
-            salt = base64.b64decode(enc["salt"])
-            se = StandardEncryption(passphrase, salt=salt)
-            return se.decrypt(enc).decode()
+            try:
+                enc = cbor_data["standard_encryption"]
+                salt = base64.b64decode(enc["salt"])
+                se = StandardEncryption(passphrase, salt=salt)
+                return se.decrypt(enc).decode()
+            except Exception as e:
+                raise ValueError(f"Decryption failed: {e}")
+        
         # TODO: Add support for Shamir, quantum, steganography, etc.
         raise NotImplementedError(f"Recovery for layers {layers} is not yet implemented.") 

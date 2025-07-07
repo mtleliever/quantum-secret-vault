@@ -5,6 +5,7 @@ Integration tests for the complete vault functionality.
 import pytest
 import os
 import json
+import cbor2
 from src.core import QuantumSecretVault, SecurityConfig, SecurityLayer
 
 class TestVaultIntegration:
@@ -24,22 +25,31 @@ class TestVaultIntegration:
         # Verify result structure
         assert result["vault_created"] is True
         assert SecurityLayer.STANDARD_ENCRYPTION.value in result["layers_used"]
-        assert len(result["files_created"]) >= 2  # encrypted_seed.json + vault_config.json
+        assert len(result["files_created"]) == 1  # Only vault.bin for standard encryption
         
-        # Check encrypted file exists
-        encrypted_file = os.path.join(temp_dir, "encrypted_seed.json")
-        assert os.path.exists(encrypted_file)
+        # Check vault.bin file exists
+        vault_file = os.path.join(temp_dir, "vault.bin")
+        assert os.path.exists(vault_file)
         
-        # Verify file structure
-        with open(encrypted_file, 'r') as f:
-            data = json.load(f)
+        # Verify CBOR file structure
+        with open(vault_file, 'rb') as f:
+            cbor_data = cbor2.load(f)
         
-        assert "encrypted_data" in data
-        assert "encryption_info" in data
-        assert "standard_encryption" in data["encryption_info"]
+        assert "layers" in cbor_data
+        assert "standard_encryption" in cbor_data
+        assert cbor_data["layers"] == ["standard_encryption"]
+        
+        # Verify encryption metadata
+        enc_data = cbor_data["standard_encryption"]
+        assert "encryption_type" in enc_data
+        assert "salt" in enc_data
+        assert "nonce" in enc_data
+        assert "ciphertext" in enc_data
+        assert "iterations" in enc_data
+        assert enc_data["encryption_type"] == "AES-256-GCM"
     
-    def test_vault_config_file(self, temp_dir, sample_seed, sample_passphrase):
-        """Test vault configuration file generation."""
+    def test_vault_no_config_file_for_standard_encryption(self, temp_dir, sample_seed, sample_passphrase):
+        """Test that no vault configuration file is created for standard encryption only."""
         config = SecurityConfig(
             layers=[SecurityLayer.STANDARD_ENCRYPTION],
             passphrase=sample_passphrase,
@@ -49,18 +59,13 @@ class TestVaultIntegration:
         vault = QuantumSecretVault(config)
         result = vault.create_vault(sample_seed, temp_dir)
         
-        # Check config file
+        # Check that no config file is created for standard encryption only
         config_file = os.path.join(temp_dir, "vault_config.json")
-        assert os.path.exists(config_file)
+        assert not os.path.exists(config_file)
         
-        with open(config_file, 'r') as f:
-            config_data = json.load(f)
-        
-        assert "layers" in config_data
-        assert "created_timestamp" in config_data
-        
-        # Verify layers
-        assert SecurityLayer.STANDARD_ENCRYPTION.value in config_data["layers"]
+        # Only vault.bin should exist
+        assert len(result["files_created"]) == 1
+        assert result["files_created"][0].endswith("vault.bin")
     
     # def test_vault_steganography(self, temp_dir, sample_seed, sample_passphrase, sample_images):
     #     """Test vault with steganography."""
@@ -121,9 +126,33 @@ class TestVaultIntegration:
         vault = QuantumSecretVault(config)
         result = vault.create_vault(sample_seed, temp_dir)
         
-        # Check that files are readable
-        encrypted_file = os.path.join(temp_dir, "encrypted_seed.json")
-        config_file = os.path.join(temp_dir, "vault_config.json")
+        # Check that vault.bin file exists and is readable
+        vault_file = os.path.join(temp_dir, "vault.bin")
+        assert os.path.exists(vault_file)
+        assert os.access(vault_file, os.R_OK)
         
-        assert os.access(encrypted_file, os.R_OK)
-        assert os.access(config_file, os.R_OK) 
+        # Check secure permissions (600 - owner read/write only)
+        file_stat = os.stat(vault_file)
+        file_mode = file_stat.st_mode & 0o777
+        assert file_mode == 0o600  # Should be readable/writable by owner only
+    
+    def test_vault_recovery_roundtrip(self, temp_dir, sample_seed, sample_passphrase):
+        """Test that vault can be created and recovered successfully."""
+        config = SecurityConfig(
+            layers=[SecurityLayer.STANDARD_ENCRYPTION],
+            passphrase=sample_passphrase,
+            salt=os.urandom(32)
+        )
+        
+        # Create vault
+        vault = QuantumSecretVault(config)
+        result = vault.create_vault(sample_seed, temp_dir)
+        
+        assert result["vault_created"] is True
+        assert len(result["files_created"]) == 1
+        
+        # Recover vault
+        recovered_seed = QuantumSecretVault.recover_vault(temp_dir, sample_passphrase)
+        
+        # Verify recovery
+        assert recovered_seed == sample_seed 

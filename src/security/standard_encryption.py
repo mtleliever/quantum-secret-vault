@@ -12,24 +12,26 @@ from cryptography.hazmat.primitives import hashes
 class StandardEncryption:
     """Standard AES-256-GCM encryption with PBKDF2 key derivation"""
     
-    def __init__(self, passphrase: str, salt: Optional[bytes] = None):
+    def __init__(self, passphrase: str, salt: Optional[bytes] = None, iterations: int = 2000000):
         """
         Initialize standard encryption.
         
         Args:
             passphrase: The passphrase to derive the key from
             salt: Optional salt for key derivation (generated if not provided)
+            iterations: PBKDF2 iteration count (default: 2M for very high security)
         """
         self.passphrase = passphrase
         self.salt = salt or os.urandom(32)
+        self.iterations = iterations
         
     def derive_key(self) -> bytes:
-        """Derive AES key using PBKDF2 with high iteration count"""
+        """Derive AES key using PBKDF2 with configurable iteration count"""
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,  # 256-bit key
             salt=self.salt,
-            iterations=600000,  # High iteration count for security
+            iterations=self.iterations,  # Configurable iteration count
         )
         return kdf.derive(self.passphrase.encode('utf-8'))
     
@@ -54,7 +56,7 @@ class StandardEncryption:
             "nonce": base64.b64encode(nonce).decode('utf-8'),
             "ciphertext": base64.b64encode(ciphertext).decode('utf-8'),
             "kdf": "PBKDF2-HMAC-SHA256",
-            "iterations": "600000"
+            "iterations": str(self.iterations)
         }
     
     def decrypt(self, encrypted_data: Dict[str, Any]) -> bytes:

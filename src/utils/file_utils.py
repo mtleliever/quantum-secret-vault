@@ -18,7 +18,7 @@ def ensure_directory(path: str) -> None:
 
 def safe_write_json(data: Dict[str, Any], filepath: str, indent: int = 2) -> None:
     """
-    Safely write JSON data to a file using atomic write.
+    Safely write JSON data to a file using atomic write with secure permissions.
     
     Args:
         data: Data to write
@@ -32,6 +32,9 @@ def safe_write_json(data: Dict[str, Any], filepath: str, indent: int = 2) -> Non
     with tempfile.NamedTemporaryFile(mode='w', delete=False, dir=os.path.dirname(filepath)) as temp_file:
         json.dump(data, temp_file, indent=indent)
         temp_path = temp_file.name
+    
+    # Set secure permissions (owner read/write only)
+    os.chmod(temp_path, 0o600)
     
     # Atomic move to final location
     os.replace(temp_path, filepath)
@@ -63,4 +66,32 @@ def get_file_size(filepath: str) -> int:
     Returns:
         File size in bytes
     """
-    return os.path.getsize(filepath) 
+    return os.path.getsize(filepath)
+
+def set_secure_permissions(filepath: str) -> None:
+    """
+    Set secure permissions on a file (owner read/write only).
+    
+    Args:
+        filepath: File path to secure
+    """
+    os.chmod(filepath, 0o600)
+
+def secure_delete_string(s: str) -> None:
+    """
+    Attempt to securely overwrite a string in memory.
+    Note: This is best effort in Python due to string immutability.
+    
+    Args:
+        s: String to securely delete
+    """
+    try:
+        # This doesn't actually work in Python due to string immutability
+        # but we include it for documentation purposes
+        import ctypes
+        location = id(s)
+        size = len(s)
+        ctypes.memset(location, 0, size)
+    except:
+        # Silently fail - Python doesn't allow true secure deletion
+        pass 

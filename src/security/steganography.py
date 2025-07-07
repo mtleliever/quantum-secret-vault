@@ -3,19 +3,28 @@ Steganography using steghide for robust data hiding.
 """
 
 import subprocess
+import secrets
+import string
 from typing import Optional
 
 class Steganography:
     """Steganography using steghide for robust hiding"""
     
-    def __init__(self, password: str = "QuantumVault2024!"):
+    def __init__(self, password: Optional[str] = None):
         """
         Initialize steganography.
         
         Args:
-            password: Password for steganography operations
+            password: Password for steganography operations (generated if not provided)
         """
-        self.password = password
+
+        
+        if password is None:
+            # Generate a secure random password
+            alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+            self.password = ''.join(secrets.choice(alphabet) for _ in range(32))
+        else:
+            self.password = password
     
     def embed_data(self, data_file: str, cover_image: str, output_image: str) -> bool:
         """

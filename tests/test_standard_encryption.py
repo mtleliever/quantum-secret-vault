@@ -22,6 +22,17 @@ class TestStandardEncryption:
         enc = StandardEncryption(sample_passphrase, custom_salt)
         assert enc.salt == custom_salt
     
+    def test_initialization_with_custom_iterations(self, sample_passphrase):
+        """Test StandardEncryption initialization with custom iterations."""
+        custom_iterations = 2000000
+        enc = StandardEncryption(sample_passphrase, iterations=custom_iterations)
+        assert enc.iterations == custom_iterations
+        
+        # Test that encryption uses the custom iterations
+        data = b"test data"
+        encrypted = enc.encrypt(data)
+        assert encrypted["iterations"] == str(custom_iterations)
+    
     def test_key_derivation(self, sample_passphrase):
         """Test PBKDF2 key derivation."""
         enc = StandardEncryption(sample_passphrase)
@@ -42,7 +53,7 @@ class TestStandardEncryption:
         # Verify encryption structure
         assert encrypted["encryption_type"] == "AES-256-GCM"
         assert encrypted["kdf"] == "PBKDF2-HMAC-SHA256"
-        assert encrypted["iterations"] == "600000"
+        assert encrypted["iterations"] == "2000000"  # 2M default for personal crypto seeds
         assert "salt" in encrypted
         assert "nonce" in encrypted
         assert "ciphertext" in encrypted

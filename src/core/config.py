@@ -22,6 +22,7 @@ class SecurityConfig:
     parity_shares: int = 2
     passphrase: str = ""
     salt: bytes = b""
+    pbkdf2_iterations: int = 2000000  # Very high security default for personal crypto seeds
     
     def has_layer(self, layer: SecurityLayer) -> bool:
         """Check if a specific security layer is enabled"""

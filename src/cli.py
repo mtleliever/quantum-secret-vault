@@ -9,6 +9,7 @@ import json
 import base64
 from typing import List
 from .core import QuantumSecretVault, SecurityConfig, SecurityLayer
+from .utils.validation import validate_seed_phrase, validate_passphrase
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
@@ -28,11 +29,12 @@ Examples:
     create_parser = subparsers.add_parser("create", help="Create a new quantum vault")
     create_parser.add_argument("--seed", type=str, required=True, help="BIP-39 seed phrase (24 words)")
     create_parser.add_argument("--passphrase", type=str, required=True, help="BIP-39 passphrase (25th word)")
-    create_parser.add_argument("--layers", nargs='+', choices=[layer.value for layer in SecurityLayer], default=[SecurityLayer.QUANTUM_ENCRYPTION.value], help="Security layers to apply (can combine multiple)")
+    create_parser.add_argument("--layers", nargs='+', choices=[layer.value for layer in SecurityLayer], default=[SecurityLayer.STANDARD_ENCRYPTION.value], help="Security layers to apply (can combine multiple)")
     create_parser.add_argument("--shamir", nargs=2, type=int, metavar=('THRESHOLD', 'TOTAL'), help="Shamir sharing parameters (e.g., 5 7)")
     create_parser.add_argument("--parity", type=int, default=2, help="Reed-Solomon parity shares (default: 2)")
     create_parser.add_argument("--images", nargs='+', help="Image files for steganography")
     create_parser.add_argument("--output-dir", type=str, default="quantum_vault", help="Output directory (default: quantum_vault)")
+    create_parser.add_argument("--iterations", type=int, default=2000000, help="PBKDF2 iterations (default: 2M for very high security)")
     create_parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
 
     # Recover subcommand
@@ -44,6 +46,20 @@ Examples:
 
 def validate_arguments(args: argparse.Namespace) -> None:
     """Validate command line arguments."""
+    # Validate seed phrase format
+    if not validate_seed_phrase(args.seed):
+        raise ValueError("Invalid BIP-39 seed phrase format. Must be 12, 15, 18, 21, or 24 lowercase words.")
+    
+    # Validate passphrase format
+    if not validate_passphrase(args.passphrase):
+        raise ValueError("Invalid passphrase format. Must be 1-100 characters.")
+    
+    # Validate PBKDF2 iterations
+    if args.iterations < 2000000:
+        raise ValueError("PBKDF2 iterations must be at least 2,000,000 for high-value crypto seeds")
+    if args.iterations > 10000000:
+        raise ValueError("PBKDF2 iterations cannot exceed 10,000,000 (would be too slow)")
+    
     # Parse security layers
     layers = [SecurityLayer(layer) for layer in args.layers]
     
@@ -89,11 +105,15 @@ def create_vault(args: argparse.Namespace) -> None:
         shamir_total=total,
         parity_shares=args.parity,
         passphrase=args.passphrase,
-        salt=os.urandom(32)
+        salt=os.urandom(32),
+        pbkdf2_iterations=args.iterations
     )
     
     if args.verbose:
         print(f"[*] Security layers: {', '.join([layer.value for layer in layers])}")
+        print(f"[*] Seed words: {len(args.seed.split())} words")
+        print(f"[*] Passphrase: {'*' * len(args.passphrase)} (hidden for security)")
+        print(f"[*] PBKDF2 iterations: {args.iterations:,} ({args.iterations/1000000:.1f}M)")
         if SecurityLayer.SHAMIR_SHARING in layers:
             print(f"[*] Shamir sharing: {threshold}-of-{total} with {args.parity} parity shares")
         if SecurityLayer.STEGANOGRAPHY in layers:
