@@ -9,7 +9,7 @@ import base64
 import cbor2
 from typing import List, Dict, Any, Optional
 from ..security.standard_encryption import StandardEncryption
-# from ..security.quantum_encryption import QuantumEncryption  # Commented out - liboqs dependency issues
+from ..security.quantum_encryption import QuantumEncryption  # Now enabled with liboqs properly installed
 from ..security.shamir_sharing import ShamirSharing
 from ..security.steganography import Steganography
 from .config import SecurityConfig, SecurityLayer
@@ -33,7 +33,12 @@ class QuantumSecretVault:
             config.argon2_time_cost,
             config.argon2_parallelism
         )
-        # self.quantum_enc = QuantumEncryption()  # Commented out - liboqs dependency issues
+        self.quantum_enc = QuantumEncryption(
+            passphrase=config.passphrase,
+            memory_cost=config.argon2_memory_cost,
+            time_cost=config.argon2_time_cost,
+            parallelism=config.argon2_parallelism
+        )
         self.shamir = ShamirSharing(config.shamir_threshold, config.shamir_total, config.parity_shares)
         self.stego = Steganography()
         
@@ -63,13 +68,17 @@ class QuantumSecretVault:
             }
         
         # Layer 2: Quantum Encryption (if enabled)
-        # if self.config.has_layer(SecurityLayer.QUANTUM_ENCRYPTION):
-        #     encrypted = self.quantum_enc.encrypt(current_data)
-        #     current_data = json.dumps(encrypted).encode('utf-8')
-        #     encryption_info["quantum_encryption"] = {
-        #         "kem": "Kyber1024",
-        #         "requires_private_key": True
-        #     }
+        if self.config.has_layer(SecurityLayer.QUANTUM_ENCRYPTION):
+            encrypted = self.quantum_enc.encrypt(current_data)
+            current_data = json.dumps(encrypted).encode('utf-8')
+            encryption_info["quantum_encryption"] = {
+                "algorithm": encrypted["encryption_type"],
+                "memory_cost": encrypted["memory_cost"],
+                "time_cost": encrypted["time_cost"],
+                "parallelism": encrypted["parallelism"],
+                "key_commitment": True,
+                "hmac_combination": True
+            }
         
         # Layer 3: Shamir Secret Sharing (if enabled)
         if self.config.has_layer(SecurityLayer.SHAMIR_SHARING):
@@ -110,8 +119,8 @@ class QuantumSecretVault:
         os.chmod(output_dir, 0o700)
         
         # Create subdirectories based on layers
-        # if self.config.has_layer(SecurityLayer.QUANTUM_ENCRYPTION):
-        #     os.makedirs(f"{output_dir}/quantum_keys", exist_ok=True)
+        if self.config.has_layer(SecurityLayer.QUANTUM_ENCRYPTION):
+            os.makedirs(f"{output_dir}/quantum_keys", exist_ok=True)
         if self.config.has_layer(SecurityLayer.SHAMIR_SHARING):
             os.makedirs(f"{output_dir}/shares", exist_ok=True)
         if self.config.has_layer(SecurityLayer.STEGANOGRAPHY):
@@ -152,8 +161,17 @@ class QuantumSecretVault:
             vault_bin_file = f"{output_dir}/vault.bin"
             cbor_data = {
                 "layers": [layer.value for layer in self.config.layers],
-                "standard_encryption": json.loads(result["encrypted_data"])
+                "encryption_info": result["encryption_info"]
             }
+            
+            # Add layer-specific data
+            if self.config.has_layer(SecurityLayer.STANDARD_ENCRYPTION):
+                cbor_data["standard_encryption"] = json.loads(result["encrypted_data"])
+            elif self.config.has_layer(SecurityLayer.QUANTUM_ENCRYPTION):
+                cbor_data["quantum_encryption"] = json.loads(result["encrypted_data"])
+            else:
+                # Just raw data if no encryption layers
+                cbor_data["raw_data"] = result["encrypted_data"]
             try:
                 with open(vault_bin_file, 'wb') as f:
                     cbor2.dump(cbor_data, f)
@@ -167,27 +185,32 @@ class QuantumSecretVault:
                 stego_file = f"{output_dir}/stego_images/vault.bin.png"
                 if self.stego.embed_data(vault_bin_file, images[0], stego_file):
                     vault_info["files_created"].append(stego_file)
-        # Save vault configuration (only if Shamir for now)
+        # Save vault configuration
+        config_file = f"{output_dir}/vault_config.json"
+        config_data = {
+            "layers": [layer.value for layer in self.config.layers],
+            "created_timestamp": str(datetime.datetime.now()),
+            "encryption_info": result["encryption_info"]
+        }
+        
+        # Add layer-specific config
         if self.config.has_layer(SecurityLayer.SHAMIR_SHARING):
-            config_file = f"{output_dir}/vault_config.json"
-            with open(config_file, 'w') as f:
-                json.dump({
-                    "layers": [layer.value for layer in self.config.layers],
-                    "shamir_config": {
-                        "threshold": self.config.shamir_threshold,
-                        "total": self.config.shamir_total,
-                        "parity": self.config.parity_shares
-                    },
-                    "created_timestamp": str(datetime.datetime.now())
-                }, f, indent=2)
-            vault_info["files_created"].append(config_file)
+            config_data["shamir_config"] = {
+                "threshold": self.config.shamir_threshold,
+                "total": self.config.shamir_total,
+                "parity": self.config.parity_shares
+            }
+        
+        with open(config_file, 'w') as f:
+            json.dump(config_data, f, indent=2)
+        vault_info["files_created"].append(config_file)
         return vault_info
 
     @staticmethod
     def recover_vault(vault_dir: str, passphrase: str) -> str:
         """
         Recover the original seed phrase from a vault directory using the provided passphrase.
-        Currently supports only standard_encryption (AES) with CBOR vault.bin.
+        Supports standard_encryption, quantum_encryption, and combined layers.
         """
         if not vault_dir or not os.path.exists(vault_dir):
             raise FileNotFoundError(f"Vault directory not found: {vault_dir}")
@@ -206,7 +229,7 @@ class QuantumSecretVault:
         if not layers:
             raise ValueError("No layers found in vault.bin")
         
-        # Only support standard_encryption for now
+        # Support standard_encryption
         if layers == ["standard_encryption"]:
             try:
                 enc = cbor_data["standard_encryption"]
@@ -224,7 +247,66 @@ class QuantumSecretVault:
                 
                 return se.decrypt(enc).decode()
             except Exception as e:
-                raise ValueError(f"Decryption failed: {e}")
+                raise ValueError(f"Standard decryption failed: {e}")
         
-        # TODO: Add support for Shamir, quantum, steganography, etc.
+        # Support quantum_encryption
+        elif layers == ["quantum_encryption"]:
+            try:
+                enc = cbor_data["quantum_encryption"]
+                
+                # Extract Argon2id parameters
+                memory_cost = int(enc.get("memory_cost", 1048576))  # 1GB default
+                time_cost = int(enc.get("time_cost", 5))
+                parallelism = int(enc.get("parallelism", 1))
+                
+                # Initialize quantum encryption
+                qe = QuantumEncryption(
+                    passphrase=passphrase,
+                    memory_cost=memory_cost,
+                    time_cost=time_cost,
+                    parallelism=parallelism
+                )
+                
+                # Decrypt with quantum encryption
+                decrypted_data = qe.decrypt(enc)
+                return decrypted_data.decode()
+            except Exception as e:
+                raise ValueError(f"Quantum decryption failed: {e}")
+        
+        # Support combined layers
+        elif "standard_encryption" in layers and "quantum_encryption" in layers:
+            try:
+                # First decrypt quantum layer
+                qe_enc = cbor_data["quantum_encryption"]
+                memory_cost = int(qe_enc.get("memory_cost", 1048576))
+                time_cost = int(qe_enc.get("time_cost", 5))
+                parallelism = int(qe_enc.get("parallelism", 1))
+                
+                qe = QuantumEncryption(
+                    passphrase=passphrase,
+                    memory_cost=memory_cost,
+                    time_cost=time_cost,
+                    parallelism=parallelism
+                )
+                
+                decrypted_quantum = qe.decrypt(qe_enc)
+                
+                # Then decrypt standard layer
+                standard_data = json.loads(decrypted_quantum.decode())
+                salt = base64.b64decode(standard_data["salt"])
+                
+                se_memory_cost = int(standard_data.get("memory_cost", 524288))
+                se_time_cost = int(standard_data.get("time_cost", 5))
+                se_parallelism = int(standard_data.get("parallelism", 1))
+                
+                se = StandardEncryption(passphrase, salt=salt,
+                                      memory_cost=se_memory_cost,
+                                      time_cost=se_time_cost,
+                                      parallelism=se_parallelism)
+                
+                return se.decrypt(standard_data).decode()
+            except Exception as e:
+                raise ValueError(f"Combined layer decryption failed: {e}")
+        
+        # TODO: Add support for Shamir, steganography, etc.
         raise NotImplementedError(f"Recovery for layers {layers} is not yet implemented.") 

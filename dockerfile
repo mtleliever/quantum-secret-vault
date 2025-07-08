@@ -1,7 +1,7 @@
 # Use Ubuntu LTS base with Python 3.10
 FROM ubuntu:22.04
 
-# Install system dependencies including liboqs C library
+# Install system dependencies including liboqs C library dependencies
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y \
     python3.10 \
@@ -11,18 +11,29 @@ RUN apt-get update && \
     cmake \
     ninja-build \
     git \
+    astyle \
+    gcc \
+    libssl-dev \
+    python3-pytest \
+    python3-pytest-xdist \
+    unzip \
+    xsltproc \
+    doxygen \
+    graphviz \
+    python3-yaml \
+    valgrind \
     && rm -rf /var/lib/apt/lists/*
 
-# Install liboqs C library (commented out for now - focus on AES first)
-# RUN git clone https://github.com/open-quantum-safe/liboqs.git && \
-#     cd liboqs && \
-#     mkdir build && cd build && \
-#     cmake -GNinja .. && \
-#     ninja && \
-#     ninja install && \
-#     ldconfig && \
-#     cd ../.. && \
-#     rm -rf liboqs
+# Install liboqs C library (using specific tag for stability)
+RUN git clone --depth 1 --branch 0.13.0 https://github.com/open-quantum-safe/liboqs.git && \
+    cd liboqs && \
+    mkdir build && cd build && \
+    cmake -GNinja .. && \
+    ninja && \
+    ninja install && \
+    ldconfig && \
+    cd ../.. && \
+    rm -rf liboqs
 
 # Set working directory
 WORKDIR /app
