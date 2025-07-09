@@ -93,7 +93,7 @@ class TestLayeredEncryption:
             assert "quantum_encryption" in result["layers"]
             assert result["layers"] == ["standard_encryption", "quantum_encryption"]
             
-            # Verify layered structure
+            # Verify layered structure - now in layer_results field
             assert "layer_results" in result
             assert len(result["layer_results"]) == 2
             assert result["layer_results"][0]["layer"] == "standard_encryption"
@@ -129,7 +129,7 @@ class TestLayeredEncryption:
             assert "standard_encryption" in result["layers"]
             assert result["layers"] == ["quantum_encryption", "standard_encryption"]
             
-            # Verify layered structure
+            # Verify layered structure - now in layer_results field
             assert "layer_results" in result
             assert len(result["layer_results"]) == 2
             assert result["layer_results"][0]["layer"] == "quantum_encryption"
@@ -159,24 +159,25 @@ class TestLayeredEncryption:
             # Create vault
             result = vault.create_vault(sample_seed, temp_dir)
             
-            # Verify encryption info
-            assert "encryption_info" in result
-            assert "standard_encryption" in result["encryption_info"]
-            assert "quantum_encryption" in result["encryption_info"]
+            # Verify encryption info is preserved in layer_results
+            assert "layer_results" in result
+            assert len(result["layer_results"]) == 2
             
-            # Verify standard encryption info
-            std_info = result["encryption_info"]["standard_encryption"]
-            assert std_info["memory_cost"] == "131072"
-            assert std_info["time_cost"] == "3"
-            assert std_info["parallelism"] == "1"
-            assert std_info["kdf"] == "Argon2id"
+            # Find standard encryption layer
+            std_layer = next(layer for layer in result["layer_results"] if layer["layer"] == "standard_encryption")
+            std_metadata = std_layer["metadata"]
+            assert std_metadata["memory_cost"] == "131072"
+            assert std_metadata["time_cost"] == "3"
+            assert std_metadata["parallelism"] == "1"
+            assert std_metadata["kdf"] == "Argon2id"
             
-            # Verify quantum encryption info
-            qe_info = result["encryption_info"]["quantum_encryption"]
-            assert qe_info["memory_cost"] == 131072
-            assert qe_info["time_cost"] == 3
-            assert qe_info["parallelism"] == 1
-            assert qe_info["kdf"] == "Argon2id"
+            # Find quantum encryption layer
+            qe_layer = next(layer for layer in result["layer_results"] if layer["layer"] == "quantum_encryption")
+            qe_metadata = qe_layer["metadata"]
+            assert qe_metadata["memory_cost"] == 131072
+            assert qe_metadata["time_cost"] == 3
+            assert qe_metadata["parallelism"] == 1
+            assert qe_metadata["kdf"] == "Argon2id"
             
             # Recover vault
             recovered_seed = QuantumSecretVault.recover_vault(temp_dir, sample_passphrase)

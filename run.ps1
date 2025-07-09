@@ -19,19 +19,34 @@ docker build -t quantum-secret-vault:latest .
 
 if ($Mode -eq "recover") {
     if ($Args.Count -lt 2) {
-        Write-Host "Usage: .\run.ps1 recover <vault_dir> <passphrase>"
+        Write-Host "Usage: .\run.ps1 recover <vault_dir> <passphrase> [additional_args...]"
         exit 1
     }
     $VaultDir = $Args[0]
     $Passphrase = $Args[1]
+    $AdditionalArgs = @()
+    if ($Args.Count -gt 2) {
+        $AdditionalArgs = $Args[2..($Args.Count-1)]
+    }
     Write-Host "Running vault recovery..."
-    docker run --rm -it `
-      -v "${PWD}/${VaultDir}:/vault/" `
-      --entrypoint="" `
-      quantum-secret-vault:latest `
-      python3 -m src.cli recover `
-      --vault-dir /vault `
-      --passphrase "$Passphrase"
+    if ($AdditionalArgs.Count -gt 0) {
+        docker run --rm -it `
+          -v "${PWD}/${VaultDir}:/vault/" `
+          --entrypoint="" `
+          quantum-secret-vault:latest `
+          python3 -m src.cli recover `
+          --vault-dir /vault `
+          --passphrase "$Passphrase" `
+          $AdditionalArgs
+    } else {
+        docker run --rm -it `
+          -v "${PWD}/${VaultDir}:/vault/" `
+          --entrypoint="" `
+          quantum-secret-vault:latest `
+          python3 -m src.cli recover `
+          --vault-dir /vault `
+          --passphrase "$Passphrase"
+    }
 } else {
     if ($Args.Count -lt 2) {
         Write-Host "Usage: .\run.ps1 create <seed> <passphrase> [layers...]"

@@ -34,19 +34,21 @@ class TestVaultIntegration:
             cbor_data = cbor2.load(f)
         
         assert "layers" in cbor_data
-        assert "encryption_info" in cbor_data
-        assert "standard_encryption" in cbor_data["encryption_info"]
-        assert cbor_data["layers"] == ["standard_encryption"]
+        assert "ciphertext" in cbor_data
+        assert len(cbor_data["layers"]) == 1
+        assert cbor_data["layers"][0]["layer"] == "standard_encryption"
         
-        # Verify encryption metadata
-        enc_data = cbor_data["encryption_info"]["standard_encryption"]
-        assert "encryption_type" in enc_data
-        assert "kdf" in enc_data
-        assert "memory_cost" in enc_data
-        assert "time_cost" in enc_data
-        assert "parallelism" in enc_data
-        assert enc_data["encryption_type"] == "AES-256-GCM"
-        assert enc_data["kdf"] == "Argon2id"
+        # Verify encryption metadata in the new structure
+        layer_metadata = cbor_data["layers"][0]["metadata"]
+        assert "encryption_type" in layer_metadata
+        assert "kdf" in layer_metadata
+        assert "memory_cost" in layer_metadata
+        assert "time_cost" in layer_metadata
+        assert "parallelism" in layer_metadata
+        assert "salt" in layer_metadata
+        assert "nonce" in layer_metadata
+        assert layer_metadata["encryption_type"] == "AES-256-GCM"
+        assert layer_metadata["kdf"] == "Argon2id"
     
     def test_vault_no_config_file_for_standard_encryption(self, temp_dir, sample_seed, sample_passphrase):
         """Test that no vault configuration file is created for standard encryption only."""

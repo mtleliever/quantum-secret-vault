@@ -69,30 +69,55 @@ class LayeredEncryption:
         
         for layer in self.layers:
             if layer == SecurityLayer.STANDARD_ENCRYPTION:
-                # Apply standard encryption
+                # Apply standard encryption to current data
                 encrypted = self.standard_enc.encrypt(current_data)
+                
+                # Store only the metadata (not the ciphertext)
                 layer_results.append({
                     "layer": "standard_encryption",
-                    "data": encrypted
+                    "metadata": {
+                        "salt": encrypted["salt"],
+                        "nonce": encrypted["nonce"],
+                        "kdf": encrypted["kdf"],
+                        "memory_cost": encrypted["memory_cost"],
+                        "time_cost": encrypted["time_cost"],
+                        "parallelism": encrypted["parallelism"],
+                        "encryption_type": encrypted["encryption_type"]
+                    }
                 })
-                # Convert to bytes for next layer
-                current_data = json.dumps(encrypted).encode("utf-8")
+                
+                # The result becomes input for next layer
+                current_data = base64.b64decode(encrypted["ciphertext"])
                 
             elif layer == SecurityLayer.QUANTUM_ENCRYPTION:
-                # Apply quantum encryption
+                # Apply quantum encryption to current data
                 encrypted = self.quantum_enc.encrypt(current_data)
+                
+                # Store only the metadata (not the ciphertext)
                 layer_results.append({
-                    "layer": "quantum_encryption", 
-                    "data": encrypted
+                    "layer": "quantum_encryption",
+                    "metadata": {
+                        "kdf": encrypted["kdf"],
+                        "memory_cost": encrypted["memory_cost"],
+                        "time_cost": encrypted["time_cost"],
+                        "parallelism": encrypted["parallelism"],
+                        "encryption_type": encrypted["encryption_type"],
+                        "kyber_public_key": encrypted["kyber_public_key"],
+                        "kyber_ciphertext": encrypted["kyber_ciphertext"],
+                        "encrypted_private_key": encrypted["encrypted_private_key"],
+                        "secret_key_nonce": encrypted["secret_key_nonce"],
+                        "salt": encrypted["salt"],
+                        "key_commitment": encrypted["key_commitment"],
+                        "aes_nonce": encrypted["aes_nonce"]
+                    }
                 })
-                # Convert to bytes for next layer
-                current_data = json.dumps(encrypted).encode("utf-8")
+                
+                # The result becomes input for next layer
+                current_data = base64.b64decode(encrypted["aes_ciphertext"])
         
         return {
-            "layers": [layer.value for layer in self.layers],
-            "layer_results": layer_results,
-            "final_data": base64.b64encode(current_data).decode("utf-8"),
-            "encryption_info": self._build_encryption_info(layer_results)
+            "layers": layer_results,
+            "ciphertext": base64.b64encode(current_data).decode("utf-8")
         }
     
     def decrypt(self, encrypted_data: Dict[str, Any]) -> bytes:
@@ -109,93 +134,70 @@ class LayeredEncryption:
         
         # If no layers, just return the final data
         if not layers:
-            return base64.b64decode(encrypted_data["final_data"])
+            return base64.b64decode(encrypted_data["ciphertext"])
         
-        # Use layer_results to decrypt in reverse order
-        if "layer_results" in encrypted_data:
-            layer_results = encrypted_data["layer_results"]
-            
-            # Start with the original data from the first layer
-            # and decrypt each layer in reverse order
-            current_data = b""  # Initialize with empty bytes
-            
-            # Start from the last layer and work backwards
-            for i in range(len(layers) - 1, -1, -1):
-                layer = layers[i]
-                layer_data = layer_results[i]["data"]
-                
-                if layer == "quantum_encryption":
-                    # Quantum decryption
-                    decrypted = self.quantum_enc.decrypt(layer_data)
-                    current_data = decrypted
-                    
-                elif layer == "standard_encryption":
-                    # Standard decryption - need to use the salt from the encrypted data
-                    salt = base64.b64decode(layer_data["salt"])
-                    memory_cost = int(layer_data["memory_cost"])
-                    time_cost = int(layer_data["time_cost"])
-                    parallelism = int(layer_data["parallelism"])
-                    
-                    # Create new StandardEncryption with the correct salt
-                    std_enc = StandardEncryption(
-                        passphrase=self.passphrase,
-                        salt=salt,
-                        memory_cost=memory_cost,
-                        time_cost=time_cost,
-                        parallelism=parallelism
-                    )
-                    decrypted = std_enc.decrypt(layer_data)
-                    current_data = decrypted
-            
-            if not current_data:
-                raise ValueError("No valid decryption result obtained")
-            
-            return current_data
+        # Start with the final encrypted data
+        current_data = base64.b64decode(encrypted_data["ciphertext"])
         
-        else:
-            # Fallback for data without layer_results
-            # This shouldn't happen in normal operation with new format
-            raise ValueError("No layer_results found in encrypted data")
-    
-    def _build_encryption_info(self, layer_results: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Build encryption info summary from layer results.
-        
-        Args:
-            layer_results: List of layer encryption results
+        # Process layers in reverse order
+        for i in range(len(layers) - 1, -1, -1):
+            layer_info = layers[i]
+            layer_type = layer_info["layer"]
+            layer_metadata = layer_info["metadata"]
             
-        Returns:
-            Dictionary with encryption info for each layer
-        """
-        encryption_info = {}
-        
-        for layer_result in layer_results:
-            layer_name = layer_result["layer"]
-            layer_data = layer_result["data"]
-            
-            if layer_name == "standard_encryption":
-                encryption_info["standard_encryption"] = {
-                    "salt": layer_data["salt"],
-                    "kdf": layer_data["kdf"],
-                    "memory_cost": layer_data["memory_cost"],
-                    "time_cost": layer_data["time_cost"],
-                    "parallelism": layer_data["parallelism"],
-                    "encryption_type": layer_data["encryption_type"]
+            if layer_type == "quantum_encryption":
+                # Reconstruct quantum encryption data structure
+                quantum_data = {
+                    "kdf": layer_metadata["kdf"],
+                    "memory_cost": layer_metadata["memory_cost"],
+                    "time_cost": layer_metadata["time_cost"],
+                    "parallelism": layer_metadata["parallelism"],
+                    "encryption_type": layer_metadata["encryption_type"],
+                    "kyber_public_key": layer_metadata["kyber_public_key"],
+                    "kyber_ciphertext": layer_metadata["kyber_ciphertext"],
+                    "encrypted_private_key": layer_metadata["encrypted_private_key"],
+                    "secret_key_nonce": layer_metadata["secret_key_nonce"],
+                    "salt": layer_metadata["salt"],
+                    "key_commitment": layer_metadata["key_commitment"],
+                    "aes_nonce": layer_metadata["aes_nonce"],
+                    "aes_ciphertext": base64.b64encode(current_data).decode("utf-8")
                 }
                 
-            elif layer_name == "quantum_encryption":
-                encryption_info["quantum_encryption"] = {
-                    "algorithm": layer_data["encryption_type"],
-                    "memory_cost": layer_data["memory_cost"],
-                    "time_cost": layer_data["time_cost"],
-                    "parallelism": layer_data["parallelism"],
-                    "key_commitment": True,
-                    "hmac_combination": True,
-                    "kdf": layer_data["kdf"]
+                # Decrypt using quantum encryption
+                decrypted = self.quantum_enc.decrypt(quantum_data)
+                current_data = decrypted
+                
+            elif layer_type == "standard_encryption":
+                # Reconstruct standard encryption data structure
+                standard_data = {
+                    "salt": layer_metadata["salt"],
+                    "nonce": layer_metadata["nonce"],
+                    "kdf": layer_metadata["kdf"],
+                    "memory_cost": layer_metadata["memory_cost"],
+                    "time_cost": layer_metadata["time_cost"],
+                    "parallelism": layer_metadata["parallelism"],
+                    "encryption_type": layer_metadata["encryption_type"],
+                    "ciphertext": base64.b64encode(current_data).decode("utf-8")
                 }
+                
+                # Create StandardEncryption with correct salt and decrypt
+                salt = base64.b64decode(layer_metadata["salt"])
+                memory_cost = int(layer_metadata["memory_cost"])
+                time_cost = int(layer_metadata["time_cost"])
+                parallelism = int(layer_metadata["parallelism"])
+                
+                std_enc = StandardEncryption(
+                    passphrase=self.passphrase,
+                    salt=salt,
+                    memory_cost=memory_cost,
+                    time_cost=time_cost,
+                    parallelism=parallelism
+                )
+                decrypted = std_enc.decrypt(standard_data)
+                current_data = decrypted
         
-        return encryption_info
-    
+        return current_data
+
     @staticmethod
     def create_from_vault_data(vault_data: Dict[str, Any], passphrase: str) -> 'LayeredEncryption':
         """
@@ -208,23 +210,22 @@ class LayeredEncryption:
         Returns:
             LayeredEncryption instance configured for decryption
         """
-        layers = [SecurityLayer(layer) for layer in vault_data["layers"]]
+        layers_data = vault_data["layers"]
+        layers = [SecurityLayer(layer_info["layer"]) for layer_info in layers_data]
         
-        # Extract parameters from the first layer that has them
+        # Extract parameters from layer metadata
         memory_cost = 524288  # Default
         time_cost = 5         # Default
         parallelism = 1       # Default
         
-        if "encryption_info" in vault_data:
-            info = vault_data["encryption_info"]
-            if "standard_encryption" in info:
-                memory_cost = int(info["standard_encryption"]["memory_cost"])
-                time_cost = int(info["standard_encryption"]["time_cost"])
-                parallelism = int(info["standard_encryption"]["parallelism"])
-            elif "quantum_encryption" in info:
-                memory_cost = int(info["quantum_encryption"]["memory_cost"])
-                time_cost = int(info["quantum_encryption"]["time_cost"])
-                parallelism = int(info["quantum_encryption"]["parallelism"])
+        # Extract parameters from the first layer that has them
+        for layer_info in layers_data:
+            layer_metadata = layer_info["metadata"]
+            if "memory_cost" in layer_metadata:
+                memory_cost = int(layer_metadata["memory_cost"])
+                time_cost = int(layer_metadata["time_cost"])
+                parallelism = int(layer_metadata["parallelism"])
+                break
         
         return LayeredEncryption(
             passphrase=passphrase,

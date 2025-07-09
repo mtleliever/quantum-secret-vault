@@ -94,9 +94,6 @@ vault_output/
 │   ├── share_1.json           # Share 1 (Shamir)
 │   ├── share_2.json           # Share 2 (Parity)
 │   └── ...
-├── quantum_keys/              # (if quantum encryption enabled)
-│   ├── kyber_priv_0.bin       # Quantum private keys
-│   └── ...
 ├── stego_images/              # (if steganography enabled)
 │   ├── share_0.png           # Hidden share 0
 │   ├── share_1.png           # Hidden share 1
