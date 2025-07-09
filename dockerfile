@@ -25,7 +25,7 @@ RUN apt-get update && \
     && rm -rf /var/lib/apt/lists/*
 
 # Install liboqs C library (using specific tag for stability)
-RUN git clone --depth 1 --branch 0.13.0 https://github.com/open-quantum-safe/liboqs.git && \
+RUN git clone --depth 1 --branch 0.12.0 https://github.com/open-quantum-safe/liboqs.git && \
     cd liboqs && \
     mkdir build && cd build && \
     cmake -GNinja .. && \
@@ -34,6 +34,13 @@ RUN git clone --depth 1 --branch 0.13.0 https://github.com/open-quantum-safe/lib
     ldconfig && \
     cd ../.. && \
     rm -rf liboqs
+
+# Install liboqs-python from source (since PyPI package is unavailable)
+RUN git clone --depth 1 --branch 0.12.0 https://github.com/open-quantum-safe/liboqs-python.git && \
+    cd liboqs-python && \
+    pip3 install . && \
+    cd .. && \
+    rm -rf liboqs-python
 
 # Set working directory
 WORKDIR /app
