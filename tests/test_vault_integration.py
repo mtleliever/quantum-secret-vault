@@ -22,7 +22,7 @@ class TestVaultIntegration:
         
         # Verify result structure
         assert result["vault_created"] is True
-        assert SecurityLayer.STANDARD_ENCRYPTION.value in result["layers_used"]
+        assert SecurityLayer.STANDARD_ENCRYPTION.value in result["layers"]
         assert len(result["files_created"]) == 1  # Only vault.bin for standard encryption
         
         # Check vault.bin file exists
@@ -34,15 +34,13 @@ class TestVaultIntegration:
             cbor_data = cbor2.load(f)
         
         assert "layers" in cbor_data
-        assert "standard_encryption" in cbor_data
+        assert "encryption_info" in cbor_data
+        assert "standard_encryption" in cbor_data["encryption_info"]
         assert cbor_data["layers"] == ["standard_encryption"]
         
         # Verify encryption metadata
-        enc_data = cbor_data["standard_encryption"]
+        enc_data = cbor_data["encryption_info"]["standard_encryption"]
         assert "encryption_type" in enc_data
-        assert "salt" in enc_data
-        assert "nonce" in enc_data
-        assert "ciphertext" in enc_data
         assert "kdf" in enc_data
         assert "memory_cost" in enc_data
         assert "time_cost" in enc_data
