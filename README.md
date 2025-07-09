@@ -42,27 +42,27 @@ The vault supports **4 security layers** that can be combined in any order:
 
 ### 1. **Create Vaults with Different Security Levels**
 
-#### **Basic Quantum Security Only**
+#### **Basic Standard Encryption Only**
 ```bash
-./run.sh create "word1 word2 ... word24" "password" "quantum_encryption"
+./run.sh create "word1 word2 ... word24" "password" standard_encryption
 ```
 *Output: Single quantum-encrypted file*
 
 #### **Quantum + Standard Encryption**
 ```bash
-./run.sh create "word1 word2 ... word24" "password" "standard_encryption" "quantum_encryption"
+./run.sh create "word1 word2 ... word24" "password" standard_encryption quantum_encryption
 ```
 *Output: Double-encrypted file (AES + Kyber)*
 
 #### **Quantum + Shamir Sharing**
 ```bash
-./run.sh create "word1 word2 ... word24" "password" "quantum_encryption" "shamir_sharing" 5 7
+./run.sh create "word1 word2 ... word24" "password" quantum_encryption shamir_sharing 5 7
 ```
 *Output: 7 quantum-encrypted shares (need 5 to recover)*
 
 #### **Full Security Stack**
 ```bash
-./run.sh create "word1 word2 ... word24" "password" "standard_encryption" "quantum_encryption" "shamir_sharing" "steganography" 5 7 image1.png image2.png image3.png image4.png image5.png image6.png image7.png
+./run.sh create "word1 word2 ... word24" "password" standard_encryption quantum_encryption shamir_sharing steganography 5 7 image1.png image2.png image3.png image4.png image5.png image6.png image7.png
 ```
 *Output: 7 stego images with hidden encrypted shares*
 
