@@ -134,17 +134,14 @@ class QuantumEncryption:
         # Generate truly random Kyber keypair
         with oqs.KeyEncapsulation(self.kem_name) as kem:
             public_key = kem.generate_keypair()
-            private_key = kem.export_secret_key()
+            secret_key = kem.export_secret_key()
             
-            # Encrypt the private key with password-derived key
-            private_key_nonce = secrets.token_bytes(12)
-            private_key_cipher = AESGCM(private_key_encryption_key)
-            encrypted_private_key = private_key_cipher.encrypt(private_key_nonce, private_key, None)
+            # Encrypt the secret key with password-derived key for storage
+            secret_key_nonce = secrets.token_bytes(12)
+            secret_key_cipher = AESGCM(private_key_encryption_key)
+            encrypted_secret_key = secret_key_cipher.encrypt(secret_key_nonce, secret_key, None)
             
-            # Generate random data key for actual data encryption
-            data_key = secrets.token_bytes(32)
-            
-            # Encapsulate the data key with Kyber public key
+            # Encapsulate a random secret with Kyber public key
             kyber_ciphertext, shared_secret = kem.encap_secret(public_key)
             
             # Combine commitment key with shared secret for additional security
@@ -153,32 +150,25 @@ class QuantumEncryption:
             # Generate key commitment for tampering detection
             key_commitment = self._generate_key_commitment(combined_key)
             
-            # Encrypt the data key with combined key
-            data_key_nonce = secrets.token_bytes(12)
-            data_key_cipher = AESGCM(combined_key[:32])
-            encrypted_data_key = data_key_cipher.encrypt(data_key_nonce, data_key, None)
-            
-            # Encrypt the actual data with the data key
+            # Encrypt the actual data with the combined key
             data_nonce = secrets.token_bytes(12)
-            data_cipher = AESGCM(data_key)
+            data_cipher = AESGCM(combined_key[:32])
             data_ciphertext = data_cipher.encrypt(data_nonce, data, None)
             
             return {
-                "encryption_type": "Kyber1024-Argon2-AES256-GCM-HMAC",
+                "encryption_type": "Kyber1024",
                 "kyber_public_key": base64.b64encode(public_key).decode(),
                 "kyber_ciphertext": base64.b64encode(kyber_ciphertext).decode(),
-                "encrypted_private_key": base64.b64encode(encrypted_private_key).decode(),
-                "private_key_nonce": base64.b64encode(private_key_nonce).decode(),
+                "encrypted_private_key": base64.b64encode(encrypted_secret_key).decode(),
+                "secret_key_nonce": base64.b64encode(secret_key_nonce).decode(),
                 "salt": base64.b64encode(salt).decode(),
-                "memory_cost": str(self.memory_cost),
-                "time_cost": str(self.time_cost),
-                "parallelism": str(self.parallelism),
+                "memory_cost": self.memory_cost,
+                "time_cost": self.time_cost,
+                "parallelism": self.parallelism,
                 "kdf": "Argon2id",
                 "key_commitment": base64.b64encode(key_commitment).decode(),
-                "encrypted_data_key": base64.b64encode(encrypted_data_key).decode(),
-                "data_key_nonce": base64.b64encode(data_key_nonce).decode(),
-                "data_ciphertext": base64.b64encode(data_ciphertext).decode(),
-                "data_nonce": base64.b64encode(data_nonce).decode()
+                "aes_nonce": base64.b64encode(data_nonce).decode(),
+                "aes_ciphertext": base64.b64encode(data_ciphertext).decode()
             }
     
     def decrypt(self, encrypted_data: Dict[str, Any]) -> bytes:
@@ -191,18 +181,16 @@ class QuantumEncryption:
         Returns:
             Decrypted data
         """
+        # Extract components - let KeyError propagate for missing fields
+        kyber_ciphertext = base64.b64decode(encrypted_data["kyber_ciphertext"])
+        encrypted_private_key = base64.b64decode(encrypted_data["encrypted_private_key"])
+        secret_key_nonce = base64.b64decode(encrypted_data["secret_key_nonce"])
+        salt = base64.b64decode(encrypted_data["salt"])
+        stored_commitment = base64.b64decode(encrypted_data["key_commitment"])
+        data_ciphertext = base64.b64decode(encrypted_data["aes_ciphertext"])
+        data_nonce = base64.b64decode(encrypted_data["aes_nonce"])
+        
         try:
-            # Extract components
-            kyber_ciphertext = base64.b64decode(encrypted_data["kyber_ciphertext"])
-            encrypted_private_key = base64.b64decode(encrypted_data["encrypted_private_key"])
-            private_key_nonce = base64.b64decode(encrypted_data["private_key_nonce"])
-            salt = base64.b64decode(encrypted_data["salt"])
-            stored_commitment = base64.b64decode(encrypted_data["key_commitment"])
-            encrypted_data_key = base64.b64decode(encrypted_data["encrypted_data_key"])
-            data_key_nonce = base64.b64decode(encrypted_data["data_key_nonce"])
-            data_ciphertext = base64.b64decode(encrypted_data["data_ciphertext"])
-            data_nonce = base64.b64decode(encrypted_data["data_nonce"])
-            
             # Derive key from stored parameters
             password_derived_key = self.derive_key(salt)
             
@@ -210,13 +198,12 @@ class QuantumEncryption:
             private_key_encryption_key = password_derived_key[:32]
             commitment_key = password_derived_key[32:64]
             
-            # Decrypt the Kyber private key using password-derived key
-            private_key_cipher = AESGCM(private_key_encryption_key)
-            private_key = private_key_cipher.decrypt(private_key_nonce, encrypted_private_key, None)
+            # Decrypt the Kyber secret key using password-derived key
+            secret_key_cipher = AESGCM(private_key_encryption_key)
+            secret_key = secret_key_cipher.decrypt(secret_key_nonce, encrypted_private_key, None)
             
             # Use Kyber to recover shared secret
-            with oqs.KeyEncapsulation(self.kem_name) as kem:
-                kem.import_secret_key(private_key)
+            with oqs.KeyEncapsulation(self.kem_name, secret_key=secret_key) as kem:
                 shared_secret = kem.decap_secret(kyber_ciphertext)
             
             # Combine commitment key with shared secret
@@ -227,14 +214,13 @@ class QuantumEncryption:
             if not self._constant_time_compare(stored_commitment, expected_commitment):
                 raise ValueError("Key commitment verification failed - data may be tampered")
             
-            # Decrypt the data key
-            data_key_cipher = AESGCM(combined_key[:32])
-            data_key = data_key_cipher.decrypt(data_key_nonce, encrypted_data_key, None)
-            
             # Decrypt the actual data
-            data_cipher = AESGCM(data_key)
+            data_cipher = AESGCM(combined_key[:32])
             return data_cipher.decrypt(data_nonce, data_ciphertext, None)
             
+        except KeyError:
+            # Re-raise KeyError for missing fields (expected by tests)
+            raise
         except Exception as e:
             # Add small delay to prevent timing attacks
             time.sleep(0.1)
