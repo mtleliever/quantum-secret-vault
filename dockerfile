@@ -28,7 +28,7 @@ RUN apt-get update && \
 RUN git clone --depth 1 --branch 0.12.0 https://github.com/open-quantum-safe/liboqs.git && \
     cd liboqs && \
     mkdir build && cd build && \
-    cmake -GNinja .. && \
+    cmake -GNinja -DBUILD_SHARED_LIBS=ON .. && \
     ninja && \
     ninja install && \
     ldconfig && \
@@ -36,11 +36,21 @@ RUN git clone --depth 1 --branch 0.12.0 https://github.com/open-quantum-safe/lib
     rm -rf liboqs
 
 # Install liboqs-python from source (since PyPI package is unavailable)
-RUN git clone --depth 1 --branch 0.12.0 https://github.com/open-quantum-safe/liboqs-python.git && \
+RUN pip3 install setuptools==69.5.1 wheel && \
+    git clone --depth 1 --branch 0.12.0 https://github.com/open-quantum-safe/liboqs-python.git && \
     cd liboqs-python && \
-    pip3 install . && \
+    cat pyproject.toml && \
+    echo '#!/usr/bin/env python3' > setup.py && \
+    echo 'from setuptools import setup, find_packages' >> setup.py && \
+    echo 'setup(' >> setup.py && \
+    echo '    name="liboqs-python",' >> setup.py && \
+    echo '    version="0.12.0",' >> setup.py && \
+    echo '    packages=find_packages(),' >> setup.py && \
+    echo '    python_requires=">=3.7"' >> setup.py && \
+    echo ')' >> setup.py && \
+    python3 setup.py install && \
     cd .. && \
-    rm -rf liboqs-python
+    rm -rf liboqs-python 
 
 # Set working directory
 WORKDIR /app
@@ -57,7 +67,4 @@ RUN pip3 install -r /app/tests/requirements.txt
 # Set Python path
 ENV PYTHONPATH=/app:/app/src
 
-# Set entrypoint
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-ENTRYPOINT ["/entrypoint.sh"]
+# No default entrypoint - scripts will run commands directly
