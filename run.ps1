@@ -55,10 +55,7 @@ if ($Mode -eq "recover") {
     $Seed = $Args[0]
     $Passphrase = $Args[1]
     $Layers = $Args[2..($Args.Count-1)]
-    $layersArg = @()
-    foreach ($layer in $Layers) {
-        $layersArg += @('--layers', $layer)
-    }
+    
     Write-Host "Creating quantum vault with layers: $($Layers -join ' ')"
     Write-Host "Seed: $Seed"
     Write-Host "Passphrase: $Passphrase"
@@ -66,14 +63,21 @@ if ($Mode -eq "recover") {
     if (-not (Test-Path $VaultOutput)) {
         New-Item -ItemType Directory -Path $VaultOutput | Out-Null
     }
-    docker run --rm -it `
-      -v "${VaultOutput}:/output/" `
-      --entrypoint="" `
-      quantum-secret-vault:latest `
-      python3 -m src.cli create `
-      --seed "$Seed" `
-      --passphrase "$Passphrase" `
-      @layersArg `
-      --output-dir /output
+    
+    # Build the docker command with layers as single argument
+    $dockerCmd = @(
+        "docker", "run", "--rm", "-it",
+        "-v", "${VaultOutput}:/output/",
+        "--entrypoint=",
+        "quantum-secret-vault:latest",
+        "python3", "-m", "src.cli", "create",
+        "--seed", "$Seed",
+        "--passphrase", "$Passphrase",
+        "--layers"
+    )
+    $dockerCmd += $Layers
+    $dockerCmd += "--output-dir", "/output"
+    
+    & $dockerCmd[0] $dockerCmd[1..($dockerCmd.Count-1)]
     Write-Host "Vault created in vault_output/ directory"
 } 

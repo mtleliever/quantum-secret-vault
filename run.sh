@@ -51,11 +51,6 @@ else
     echo "Usage: ./run.sh create <seed> <passphrase> [layers...]"
     exit 1
   fi
-  # Build layers argument
-  LAYERS=""
-  for layer in "$@"; do
-      LAYERS="$LAYERS --layers $layer"
-  done
   echo "Creating quantum vault with layers: $@"
   echo "Seed: $SEED"
   echo "Passphrase: $PASSPHRASE"
@@ -69,7 +64,7 @@ else
     python3 -m src.cli create \
     --seed "$SEED" \
     --passphrase "$PASSPHRASE" \
-    $LAYERS \
+    --layers "$@" \
     --output-dir /output
   echo "Vault created in vault_output/ directory"
 fi
