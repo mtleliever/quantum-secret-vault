@@ -128,7 +128,7 @@ def create_vault(args: argparse.Namespace) -> None:
         print(f"    - Memory: {args.memory:,} KiB ({args.memory/1024:.0f} MiB)")
         print(f"    - Time: {args.time} iterations")
         print(f"    - Threads: {args.threads}")
-        print(f"[*] Estimated crack cost: $10M+ with specialized hardware")
+        print(f"[*] Computational resistance: Memory-hard key derivation with configurable difficulty")
         if SecurityLayer.SHAMIR_SHARING in layers:
             print(f"[*] Shamir sharing: {threshold}-of-{total} with {args.parity} parity shares")
         if SecurityLayer.STEGANOGRAPHY in layers:
