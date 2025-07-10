@@ -17,18 +17,31 @@ shift
 if [[ "$MODE" == "recover" ]]; then
   VAULT_DIR="$1"
   PASSPHRASE="$2"
+  shift 2
+  ADDITIONAL_ARGS="$@"
   if [[ -z "$VAULT_DIR" || -z "$PASSPHRASE" ]]; then
-    echo "Usage: ./run.sh recover <vault_dir> <passphrase>"
+    echo "Usage: ./run.sh recover <vault_dir> <passphrase> [additional_args...]"
     exit 1
   fi
   echo "Running vault recovery..."
-  docker run --rm -it \
-    -v "$(pwd)/$VAULT_DIR/:/vault/" \
-    --entrypoint="" \
-    quantum-secret-vault:latest \
-    python3 -m src.cli recover \
-    --vault-dir /vault \
-    --passphrase "$PASSPHRASE"
+  if [[ -n "$ADDITIONAL_ARGS" ]]; then
+    docker run --rm -it \
+      -v "$(pwd)/$VAULT_DIR/:/vault/" \
+      --entrypoint="" \
+      quantum-secret-vault:latest \
+      python3 -m src.cli recover \
+      --vault-dir /vault \
+      --passphrase "$PASSPHRASE" \
+      $ADDITIONAL_ARGS
+  else
+    docker run --rm -it \
+      -v "$(pwd)/$VAULT_DIR/:/vault/" \
+      --entrypoint="" \
+      quantum-secret-vault:latest \
+      python3 -m src.cli recover \
+      --vault-dir /vault \
+      --passphrase "$PASSPHRASE"
+  fi
 else
   # Default to create mode
   SEED="$1"
@@ -38,11 +51,6 @@ else
     echo "Usage: ./run.sh create <seed> <passphrase> [layers...]"
     exit 1
   fi
-  # Build layers argument
-  LAYERS=""
-  for layer in "$@"; do
-      LAYERS="$LAYERS --layers $layer"
-  done
   echo "Creating quantum vault with layers: $@"
   echo "Seed: $SEED"
   echo "Passphrase: $PASSPHRASE"
@@ -56,7 +64,7 @@ else
     python3 -m src.cli create \
     --seed "$SEED" \
     --passphrase "$PASSPHRASE" \
-    $LAYERS \
+    --layers "$@" \
     --output-dir /output
   echo "Vault created in vault_output/ directory"
 fi

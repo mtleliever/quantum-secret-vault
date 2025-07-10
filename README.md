@@ -14,8 +14,9 @@ A secure toolkit to encrypt and protect text secrets using **layered security ar
 The vault supports **4 security layers** that can be combined in any order:
 
 ### 🔐 **Layer 1: Standard Encryption**
-- **AES-256-GCM** encryption with **PBKDF2-HMAC-SHA256** key derivation
-- **600,000 iterations** for brute-force resistance
+- **AES-256-GCM** encryption with **Argon2id** key derivation
+- **Configurable memory cost** (512 MiB - 4 GiB) for brute-force resistance
+- **Configurable time cost** (5-20 iterations) for enhanced security
 - **32-byte salt** for rainbow table protection
 - **Best practice** for current cryptographic standards
 
@@ -42,29 +43,41 @@ The vault supports **4 security layers** that can be combined in any order:
 
 ### 1. **Create Vaults with Different Security Levels**
 
-#### **Basic Quantum Security Only**
+#### **Basic Standard Encryption Only**
 ```bash
-./run.sh create "word1 word2 ... word24" "password" "quantum_encryption"
+./run.sh create "word1 word2 ... word24" "password" standard_encryption
 ```
-*Output: Single quantum-encrypted file*
+*Output: Single encrypted file*
 
-#### **Quantum + Standard Encryption**
+#### **Quantum + Standard Encryption (Default Security)**
 ```bash
-./run.sh create "word1 word2 ... word24" "password" "standard_encryption" "quantum_encryption"
+./run.sh create "word1 word2 ... word24" "password" standard_encryption quantum_encryption
 ```
 *Output: Double-encrypted file (AES + Kyber)*
 
-#### **Quantum + Shamir Sharing**
+#### **High Security (1GB Memory, 12 Iterations)**
 ```bash
-./run.sh create "word1 word2 ... word24" "password" "quantum_encryption" "shamir_sharing" 5 7
+./run.sh create "word1 word2 ... word24" "password" standard_encryption quantum_encryption --memory 1048576 --time 12 --threads 4
 ```
-*Output: 7 quantum-encrypted shares (need 5 to recover)*
+*Output: High-security encrypted file with enhanced computational resistance*
 
-#### **Full Security Stack**
+#### **Ultra-High Security (4GB Memory, 20 Iterations)**
 ```bash
-./run.sh create "word1 word2 ... word24" "password" "standard_encryption" "quantum_encryption" "shamir_sharing" "steganography" 5 7 image1.png image2.png image3.png image4.png image5.png image6.png image7.png
+./run.sh create "word1 word2 ... word24" "password" standard_encryption quantum_encryption --memory 4194304 --time 20 --threads 8
 ```
-*Output: 7 stego images with hidden encrypted shares*
+*Output: Ultra-secure encrypted file with maximum computational resistance*
+
+#### **Maximum Security with Geographic Distribution**
+```bash
+./run.sh create "word1 word2 ... word24" "password" standard_encryption quantum_encryption shamir_sharing --memory 4194304 --time 20 --threads 8 --shamir 3 5
+```
+*Output: 5 ultra-secure shares (need 3 to recover)*
+
+#### **Full Security Stack with Steganography**
+```bash
+./run.sh create "word1 word2 ... word24" "password" standard_encryption quantum_encryption shamir_sharing steganography --memory 2097152 --time 15 --threads 4 --shamir 3 5 image1.png image2.png image3.png image4.png image5.png
+```
+*Output: 5 stego images with hidden ultra-secure shares*
 
 
 ### 2. **Recover Vault**
@@ -94,9 +107,6 @@ vault_output/
 │   ├── share_1.json           # Share 1 (Shamir)
 │   ├── share_2.json           # Share 2 (Parity)
 │   └── ...
-├── quantum_keys/              # (if quantum encryption enabled)
-│   ├── kyber_priv_0.bin       # Quantum private keys
-│   └── ...
 ├── stego_images/              # (if steganography enabled)
 │   ├── share_0.png           # Hidden share 0
 │   ├── share_1.png           # Hidden share 1
@@ -106,24 +116,48 @@ vault_output/
 
 ---
 
+## ⚙️ Security Parameters
+
+### **Argon2id Key Derivation Settings**
+
+Control the computational cost of brute-force attacks with these parameters:
+
+| Parameter | Flag | Default | Range | Description |
+|-----------|------|---------|-------|-------------|
+| **Memory** | `--memory` | 512 MiB | 64 MiB - 4 GiB | Memory usage in KiB |
+| **Time** | `--time` | 5 | 1 - 20 | Number of iterations |
+| **Threads** | `--threads` | 1 | 1 - 8 | Parallel processing threads |
+
+---
+
 ## 🔧 Advanced Usage
 
-### **Custom Shamir Parameters**
+### **Custom Shamir Parameters with High Security**
 ```bash
-# 3-of-5 sharing with 1 parity share
-./run.sh "seed phrase" "passphrase" "quantum_encryption" "shamir_sharing" 3 5
+# 3-of-5 sharing with high security parameters
+./run.sh create "seed phrase" "passphrase" standard_encryption quantum_encryption shamir_sharing --memory 2097152 --time 15 --threads 4 --shamir 3 5
 ```
 
-### **Standard Encryption Only**
+### **Million-Dollar Security Setup**
 ```bash
-# Just AES-256-GCM encryption
-./run.sh "seed phrase" "passphrase" "standard_encryption"
+# Ultimate protection for high-value assets
+./run.sh create "seed phrase" "passphrase" standard_encryption quantum_encryption shamir_sharing --memory 4194304 --time 20 --threads 8 --shamir 3 7 --parity 3
 ```
 
-### **Steganography Only**
+### **Fast Testing with Lower Security**
 ```bash
-# Hide unencrypted data in images (not recommended for secrets)
-./run.sh "seed phrase" "passphrase" "steganography" image1.png
+# Quick testing with minimal security (NOT for real secrets)
+./run.sh create "seed phrase" "passphrase" standard_encryption --memory 65536 --time 3 --threads 1
+```
+
+### **Custom Security Parameters**
+```bash
+# Customize any parameter combination
+./run.sh create "seed phrase" "passphrase" standard_encryption quantum_encryption \
+  --memory 1048576 \    # 1 GB memory
+  --time 12 \           # 12 iterations
+  --threads 4 \         # 4 parallel threads
+  --output-dir my_vault
 ```
 
 ---
@@ -174,13 +208,21 @@ steghide extract -sf share_0.png -p "QuantumVault2024!" -xf share_0.json
 - **Geographic distribution**: Physically separate Shamir shares
 
 ### **Security Levels**
-| Layers | Security Level | Use Case |
-|--------|---------------|----------|
-| `standard_encryption` | 🔒 Standard | Daily use, current threats |
-| `quantum_encryption` | ⚛️ Quantum | Long-term storage, future-proof |
-| `standard_encryption` + `quantum_encryption` | 🔒⚛️ Hybrid | Maximum current + future security |
-| + `shamir_sharing` | 🔀 Distributed | Geographic backup, redundancy |
-| + `steganography` | 🖼️ Hidden | Plausible deniability, covert ops |
+
+| Configuration | Security Level | Computational Resistance | Use Case |
+|---------------|---------------|-------------------------|----------|
+| `standard_encryption` (default) | 🔒 Standard | Baseline cryptographic security | Daily use, current threats |
+| `quantum_encryption` (default) | ⚛️ Quantum | Post-quantum resistance | Long-term storage, future-proof |
+| `standard_encryption` + `quantum_encryption` | 🔒⚛️ Hybrid | Dual-layer protection | Maximum current + future security |
+| + High Security Parameters (1GB/12it) | 🔒⚛️🚀 Enhanced | Significantly increased resistance | Significant cryptocurrency holdings |
+| + Ultra-High Parameters (4GB/20it) | 🔒⚛️🚀💎 Ultimate | Maximum computational resistance | High-value asset protection |
+| + `shamir_sharing` | 🔀 Distributed | Same + Redundancy | Geographic backup, redundancy |
+| + `steganography` | 🖼️ Hidden | Same + Deniability | Plausible deniability, covert ops |
+
+### **Parameter Impact on Security**
+- **Memory Cost**: Exponential impact on computational difficulty (2x memory = 2x harder to attack)
+- **Time Cost**: Linear impact on computational difficulty (2x time = 2x harder to attack)  
+- **Combined Effect**: Multiplicative security improvement (4GB + 20 iterations = 32x more secure than defaults)
 
 ---
 
@@ -199,8 +241,6 @@ chmod +x test.sh
 - ✅ **Vault Integration**: Complete workflow testing, file structure validation
 - ✅ **Error Handling**: Invalid inputs, corrupted data, edge cases
 
-See [tests/README.md](tests/README.md) for detailed testing information.
-
 ---
 
 ## 🔧 Technical Details
@@ -215,9 +255,10 @@ See [tests/README.md](tests/README.md) for detailed testing information.
 
 ### **Cryptographic Standards**
 - **AES-256-GCM**: NIST FIPS 197, 800-38D
-- **PBKDF2-HMAC-SHA256**: RFC 2898, 600k iterations
-- **Kyber-1024**: NIST PQC Round 3 winner
+- **Argon2id**: RFC 9106, memory-hard key derivation (512 MiB - 4 GiB)
+- **Kyber-1024**: NIST PQC Round 3 winner (post-quantum KEM)
 - **Shamir Secret Sharing**: Adi Shamir's (k,n) threshold scheme
+- **Reed-Solomon**: Error correction for corrupted shares
 
 ---
 

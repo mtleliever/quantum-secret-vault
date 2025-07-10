@@ -19,19 +19,34 @@ docker build -t quantum-secret-vault:latest .
 
 if ($Mode -eq "recover") {
     if ($Args.Count -lt 2) {
-        Write-Host "Usage: .\run.ps1 recover <vault_dir> <passphrase>"
+        Write-Host "Usage: .\run.ps1 recover <vault_dir> <passphrase> [additional_args...]"
         exit 1
     }
     $VaultDir = $Args[0]
     $Passphrase = $Args[1]
+    $AdditionalArgs = @()
+    if ($Args.Count -gt 2) {
+        $AdditionalArgs = $Args[2..($Args.Count-1)]
+    }
     Write-Host "Running vault recovery..."
-    docker run --rm -it `
-      -v "${PWD}/${VaultDir}:/vault/" `
-      --entrypoint="" `
-      quantum-secret-vault:latest `
-      python3 -m src.cli recover `
-      --vault-dir /vault `
-      --passphrase "$Passphrase"
+    if ($AdditionalArgs.Count -gt 0) {
+        docker run --rm -it `
+          -v "${PWD}/${VaultDir}:/vault/" `
+          --entrypoint="" `
+          quantum-secret-vault:latest `
+          python3 -m src.cli recover `
+          --vault-dir /vault `
+          --passphrase "$Passphrase" `
+          $AdditionalArgs
+    } else {
+        docker run --rm -it `
+          -v "${PWD}/${VaultDir}:/vault/" `
+          --entrypoint="" `
+          quantum-secret-vault:latest `
+          python3 -m src.cli recover `
+          --vault-dir /vault `
+          --passphrase "$Passphrase"
+    }
 } else {
     if ($Args.Count -lt 2) {
         Write-Host "Usage: .\run.ps1 create <seed> <passphrase> [layers...]"
@@ -40,10 +55,7 @@ if ($Mode -eq "recover") {
     $Seed = $Args[0]
     $Passphrase = $Args[1]
     $Layers = $Args[2..($Args.Count-1)]
-    $layersArg = @()
-    foreach ($layer in $Layers) {
-        $layersArg += @('--layers', $layer)
-    }
+    
     Write-Host "Creating quantum vault with layers: $($Layers -join ' ')"
     Write-Host "Seed: $Seed"
     Write-Host "Passphrase: $Passphrase"
@@ -51,14 +63,21 @@ if ($Mode -eq "recover") {
     if (-not (Test-Path $VaultOutput)) {
         New-Item -ItemType Directory -Path $VaultOutput | Out-Null
     }
-    docker run --rm -it `
-      -v "${VaultOutput}:/output/" `
-      --entrypoint="" `
-      quantum-secret-vault:latest `
-      python3 -m src.cli create `
-      --seed "$Seed" `
-      --passphrase "$Passphrase" `
-      @layersArg `
-      --output-dir /output
+    
+    # Build the docker command with layers as single argument
+    $dockerCmd = @(
+        "docker", "run", "--rm", "-it",
+        "-v", "${VaultOutput}:/output/",
+        "--entrypoint=",
+        "quantum-secret-vault:latest",
+        "python3", "-m", "src.cli", "create",
+        "--seed", "$Seed",
+        "--passphrase", "$Passphrase",
+        "--layers"
+    )
+    $dockerCmd += $Layers
+    $dockerCmd += "--output-dir", "/output"
+    
+    & $dockerCmd[0] $dockerCmd[1..($dockerCmd.Count-1)]
     Write-Host "Vault created in vault_output/ directory"
 } 

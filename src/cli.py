@@ -43,6 +43,7 @@ Examples:
     recover_parser = subparsers.add_parser("recover", help="Recover a seed from a vault directory (AES only)")
     recover_parser.add_argument("--vault-dir", required=True, help="Path to vault directory (containing vault_config.json)")
     recover_parser.add_argument("--passphrase", required=True, help="Passphrase for decryption")
+    recover_parser.add_argument("-v", "--verbose", action="store_true", help="Show detailed vault information before recovery")
 
     return parser.parse_args()
 
@@ -127,7 +128,7 @@ def create_vault(args: argparse.Namespace) -> None:
         print(f"    - Memory: {args.memory:,} KiB ({args.memory/1024:.0f} MiB)")
         print(f"    - Time: {args.time} iterations")
         print(f"    - Threads: {args.threads}")
-        print(f"[*] Estimated crack cost: $10M+ with specialized hardware")
+        print(f"[*] Computational resistance: Memory-hard key derivation with configurable difficulty")
         if SecurityLayer.SHAMIR_SHARING in layers:
             print(f"[*] Shamir sharing: {threshold}-of-{total} with {args.parity} parity shares")
         if SecurityLayer.STEGANOGRAPHY in layers:
@@ -139,7 +140,7 @@ def create_vault(args: argparse.Namespace) -> None:
     
     # Output results
     print(f"[+] Quantum vault created in {args.output_dir}")
-    print(f"[+] Security layers: {', '.join(result['layers_used'])}")
+    print(f"[+] Security layers: {', '.join(result['layers'])}")
     print(f"[+] Files created: {len(result['files_created'])}")
     
     if args.verbose:
@@ -147,16 +148,13 @@ def create_vault(args: argparse.Namespace) -> None:
         for file_path in result['files_created']:
             print(f"    - {file_path}")
     
-    if SecurityLayer.QUANTUM_ENCRYPTION in layers:
-        print(f"[!] Securely archive quantum private keys if generated")
-    
     if SecurityLayer.SHAMIR_SHARING in layers:
         print(f"[!] Distribute shares geographically for maximum security")
 
 def recover_vault(args: argparse.Namespace) -> None:
     # AES-only recovery using QuantumSecretVault static method
     try:
-        seed = QuantumSecretVault.recover_vault(args.vault_dir, args.passphrase)
+        seed = QuantumSecretVault.recover_vault(args.vault_dir, args.passphrase, show_details=args.verbose)
         print("[+] Decryption successful! Recovered seed phrase:")
         print(seed)
     except Exception as e:

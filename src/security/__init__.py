@@ -3,8 +3,8 @@ Security layer implementations.
 """
 
 from .standard_encryption import StandardEncryption
-# from .quantum_encryption import QuantumEncryption  # Commented out - liboqs dependency issues
+from .quantum_encryption import QuantumEncryption  # Now enabled with liboqs properly installed
 from .shamir_sharing import ShamirSharing  # Now using pyseltongue
 from .steganography import Steganography
 
-__all__ = ['StandardEncryption', 'ShamirSharing', 'Steganography'] 
+__all__ = ['StandardEncryption', 'QuantumEncryption', 'ShamirSharing', 'Steganography'] 
