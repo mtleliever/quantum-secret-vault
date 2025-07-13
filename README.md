@@ -214,7 +214,7 @@ steghide extract -sf share_0.png -p "QuantumVault2024!" -xf share_0.json
 | `standard_encryption` (default) | 🔒 Standard | Baseline cryptographic security | Daily use, current threats |
 | `quantum_encryption` (default) | ⚛️ Quantum | Post-quantum resistance | Long-term storage, future-proof |
 | `standard_encryption` + `quantum_encryption` | 🔒⚛️ Hybrid | Dual-layer protection | Maximum current + future security |
-| + High Security Parameters (1GB/12it) | 🔒⚛️🚀 Enhanced | Significantly increased resistance | Significant cryptocurrency holdings |
+| + High Security Parameters (1GB/12it) | 🔒⚛️🚀 Enhanced | Significantly increased resistance | Extremely sensitive secrets |
 | + Ultra-High Parameters (4GB/20it) | 🔒⚛️🚀💎 Ultimate | Maximum computational resistance | High-value asset protection |
 | + `shamir_sharing` | 🔀 Distributed | Same + Redundancy | Geographic backup, redundancy |
 | + `steganography` | 🖼️ Hidden | Same + Deniability | Plausible deniability, covert ops |
