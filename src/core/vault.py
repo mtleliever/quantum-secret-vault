@@ -176,9 +176,10 @@ class QuantumSecretVault:
     def inspect_vault(vault_dir: str) -> Dict[str, Any]:
         """
         Inspect vault contents and return detailed information about layers and parameters.
+        Supports both single vault.bin files and Shamir share files.
         
         Args:
-            vault_dir: Directory containing vault.bin
+            vault_dir: Directory containing vault.bin or shares/
             
         Returns:
             Dictionary with comprehensive vault information
@@ -187,14 +188,51 @@ class QuantumSecretVault:
             raise FileNotFoundError(f"Vault directory not found: {vault_dir}")
 
         vault_bin_path = os.path.join(vault_dir, "vault.bin")
-        if not os.path.exists(vault_bin_path):
-            raise FileNotFoundError(f"vault.bin not found in {vault_dir}")
+        shares_path = os.path.join(vault_dir, "shares")
+        
+        cbor_data = None
+        vault_type = "unknown"
+        
+        # Try single vault.bin first
+        if os.path.exists(vault_bin_path):
+            try:
+                with open(vault_bin_path, "rb") as f:
+                    cbor_data = cbor2.load(f)
+                vault_type = "single_vault"
+            except Exception as e:
+                raise ValueError(f"Failed to read vault.bin: {e}")
+        
+        # Try Shamir shares if vault.bin doesn't exist
+        elif os.path.exists(shares_path):
+            share_files = [f for f in os.listdir(shares_path) if f.startswith("share_") and f.endswith(".bin")]
+            if not share_files:
+                raise FileNotFoundError(f"No share files found in {shares_path}")
+            
+            # Load the first share to get layer information
+            first_share_path = os.path.join(shares_path, share_files[0])
+            try:
+                with open(first_share_path, "rb") as f:
+                    share_data = cbor2.load(f)
+                
+                # Reconstruct cbor_data format from share data
+                cbor_data = {
+                    "layers": share_data["layers"],
+                    "shares": [f"Share data from {len(share_files)} files"],  # Placeholder
+                    "share_info": {
+                        "total_shares": len(share_files),
+                        "share_type": share_data.get("share_type", "Shamir"),
+                        "first_share_id": share_data.get("share_id", 0)
+                    }
+                }
+                vault_type = "shamir_shares"
+            except Exception as e:
+                raise ValueError(f"Failed to read share file {first_share_path}: {e}")
+        
+        else:
+            raise FileNotFoundError(f"Neither vault.bin nor shares/ directory found in {vault_dir}")
 
-        try:
-            with open(vault_bin_path, "rb") as f:
-                cbor_data = cbor2.load(f)
-        except Exception as e:
-            raise ValueError(f"Failed to read vault data: {e}")
+        if cbor_data is None:
+            raise ValueError("Unable to load vault data from any source")
 
         # Convert bytes to base64 for display
         def make_displayable(obj):
@@ -211,13 +249,27 @@ class QuantumSecretVault:
             else:
                 return obj
 
-        vault_info = {
-            "vault_structure": make_displayable(cbor_data),
-            "layers_summary": [],
-            "data_size": len(cbor_data.get("ciphertext", b"")),
-            "has_ciphertext": "ciphertext" in cbor_data,
-            "total_layers": len(cbor_data.get("layers", [])),
-        }
+        # Build vault info based on vault type
+        if vault_type == "single_vault":
+            vault_info = {
+                "vault_type": "Single Vault File",
+                "vault_structure": make_displayable(cbor_data),
+                "layers_summary": [],
+                "data_size": len(cbor_data.get("ciphertext", b"")),
+                "has_ciphertext": "ciphertext" in cbor_data,
+                "total_layers": len(cbor_data.get("layers", [])),
+            }
+        else:  # shamir_shares
+            share_info = cbor_data.get("share_info", {})
+            vault_info = {
+                "vault_type": "Shamir Secret Sharing",
+                "vault_structure": make_displayable(cbor_data),
+                "layers_summary": [],
+                "total_shares": share_info.get("total_shares", 0),
+                "share_type": share_info.get("share_type", "Unknown"),
+                "has_shares": "shares" in cbor_data,
+                "total_layers": len(cbor_data.get("layers", [])),
+            }
 
         # Analyze each layer
         for i, layer_info in enumerate(cbor_data.get("layers", [])):
@@ -248,6 +300,14 @@ class QuantumSecretVault:
             if "encrypted_private_key" in metadata:
                 layer_summary["metadata_details"]["encrypted_private_key_length"] = len(metadata["encrypted_private_key"])
             
+            # Shamir-specific metadata
+            if "threshold" in metadata:
+                layer_summary["metadata_details"]["threshold"] = metadata["threshold"]
+            if "total" in metadata:
+                layer_summary["metadata_details"]["total"] = metadata["total"]
+            if "parity" in metadata:
+                layer_summary["metadata_details"]["parity"] = metadata["parity"]
+            
             vault_info["layers_summary"].append(layer_summary)
 
         return vault_info
@@ -270,9 +330,18 @@ class QuantumSecretVault:
             print("=== VAULT INSPECTION ===")
             try:
                 vault_info = QuantumSecretVault.inspect_vault(vault_dir)
+                print(f"Vault type: {vault_info['vault_type']}")
                 print(f"Total layers: {vault_info['total_layers']}")
-                print(f"Data size: {vault_info['data_size']} bytes")
-                print(f"Has ciphertext: {vault_info['has_ciphertext']}")
+                
+                # Show different info based on vault type
+                if vault_info['vault_type'] == "Single Vault File":
+                    print(f"Data size: {vault_info['data_size']} bytes")
+                    print(f"Has ciphertext: {vault_info['has_ciphertext']}")
+                else:  # Shamir shares
+                    print(f"Total shares: {vault_info['total_shares']}")
+                    print(f"Share type: {vault_info['share_type']}")
+                    print(f"Has shares: {vault_info['has_shares']}")
+                
                 print()
                 
                 for layer_summary in vault_info['layers_summary']:
