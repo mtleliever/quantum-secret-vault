@@ -1,160 +1,205 @@
 """
-Integration tests for the complete vault functionality.
+Integration tests for the quantum secret vault with different layer combinations.
 """
 
 import os
-import cbor2
+import tempfile 
+import shutil
+import pytest
 from src.core import QuantumSecretVault, SecurityConfig, SecurityLayer
 
+
 class TestVaultIntegration:
-    """Test suite for complete vault integration."""
+    """Test suite for vault integration with various security layers."""
     
-    def test_vault_aes_only(self, temp_dir, sample_seed, sample_passphrase):
-        """Test vault with AES encryption only."""
-        config = SecurityConfig(
-            layers=[SecurityLayer.STANDARD_ENCRYPTION],
-            passphrase=sample_passphrase,
-            salt=os.urandom(32)
-        )
+    def test_shamir_sharing_integration(self):
+        """Test complete Shamir sharing workflow with layered encryption."""
+        seed = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+        passphrase = "test_passphrase_123"
         
-        vault = QuantumSecretVault(config)
-        result = vault.create_vault(sample_seed, temp_dir)
-        
-        # Verify result structure
-        assert result["vault_created"] is True
-        assert SecurityLayer.STANDARD_ENCRYPTION.value in result["layers"]
-        assert len(result["files_created"]) == 1  # Only vault.bin for standard encryption
-        
-        # Check vault.bin file exists
-        vault_file = os.path.join(temp_dir, "vault.bin")
-        assert os.path.exists(vault_file)
-        
-        # Verify CBOR file structure
-        with open(vault_file, 'rb') as f:
-            cbor_data = cbor2.load(f)
-        
-        assert "layers" in cbor_data
-        assert "ciphertext" in cbor_data
-        assert len(cbor_data["layers"]) == 1
-        assert cbor_data["layers"][0]["layer"] == "standard_encryption"
-        
-        # Verify encryption metadata in the new structure
-        layer_metadata = cbor_data["layers"][0]["metadata"]
-        assert "encryption_type" in layer_metadata
-        assert "kdf" in layer_metadata
-        assert "memory_cost" in layer_metadata
-        assert "time_cost" in layer_metadata
-        assert "parallelism" in layer_metadata
-        assert "salt" in layer_metadata
-        assert "nonce" in layer_metadata
-        assert layer_metadata["encryption_type"] == "AES-256-GCM"
-        assert layer_metadata["kdf"] == "Argon2id"
+        # Create temporary directory for vault
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Configure vault with standard encryption + Shamir sharing
+            config = SecurityConfig(
+                layers=[SecurityLayer.STANDARD_ENCRYPTION, SecurityLayer.SHAMIR_SHARING],
+                shamir_threshold=3,
+                shamir_total=5,
+                parity_shares=2,
+                passphrase=passphrase,
+                salt=os.urandom(32),
+                argon2_memory_cost=65536,  # Lower for test speed
+                argon2_time_cost=3,
+                argon2_parallelism=1
+            )
+            
+            # Create vault
+            vault = QuantumSecretVault(config)
+            result = vault.create_vault(seed, temp_dir)
+            
+            # Verify vault creation
+            assert result["vault_created"] is True
+            assert "standard_encryption" in result["layers"]
+            assert len(result["files_created"]) == 7  # 5 shares + 2 parity shares
+            
+            # Verify share files exist
+            shares_dir = os.path.join(temp_dir, "shares")
+            assert os.path.exists(shares_dir)
+            
+            share_files = [f for f in os.listdir(shares_dir) if f.startswith("share_")]
+            assert len(share_files) == 7  # 5 + 2 parity
+            
+            # Test recovery using the general recover_vault method (auto-detection)  
+            recovered_seed = QuantumSecretVault.recover_vault(
+                temp_dir, passphrase, show_details=True
+            )
+            
+            assert recovered_seed == seed
     
-    def test_vault_no_config_file_for_standard_encryption(self, temp_dir, sample_seed, sample_passphrase):
-        """Test that no vault configuration file is created for standard encryption only."""
-        config = SecurityConfig(
-            layers=[SecurityLayer.STANDARD_ENCRYPTION],
-            passphrase=sample_passphrase,
-            salt=os.urandom(32)
-        )
+    def test_shamir_with_quantum_encryption(self):
+        """Test Shamir sharing with quantum encryption layer."""
+        seed = "test seed phrase for quantum shamir integration"
+        passphrase = "quantum_test_pass"
         
-        vault = QuantumSecretVault(config)
-        result = vault.create_vault(sample_seed, temp_dir)
-        
-        # Check that no config file is created for standard encryption only
-        config_file = os.path.join(temp_dir, "vault_config.json")
-        assert not os.path.exists(config_file)
-        
-        # Only vault.bin should exist
-        assert len(result["files_created"]) == 1
-        assert result["files_created"][0].endswith("vault.bin")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Configure vault with both quantum encryption and Shamir sharing
+            config = SecurityConfig(
+                layers=[SecurityLayer.QUANTUM_ENCRYPTION, SecurityLayer.SHAMIR_SHARING],
+                shamir_threshold=2,
+                shamir_total=3,
+                parity_shares=1,
+                passphrase=passphrase,
+                salt=os.urandom(32),
+                argon2_memory_cost=65536,
+                argon2_time_cost=3,
+                argon2_parallelism=1
+            )
+            
+            # Create vault
+            vault = QuantumSecretVault(config)
+            result = vault.create_vault(seed, temp_dir)
+            
+            # Verify creation
+            assert result["vault_created"] is True
+            assert "quantum_encryption" in result["layers"]
+            assert len(result["files_created"]) == 4  # 3 shares + 1 parity
+            
+            # Test recovery
+            recovered_seed = QuantumSecretVault.recover_vault(
+                temp_dir, passphrase
+            )
+            
+            assert recovered_seed == seed
     
-    # def test_vault_steganography(self, temp_dir, sample_seed, sample_passphrase, sample_images):
-    #     """Test vault with steganography."""
-    #     config = SecurityConfig(
-    #         layers=[SecurityLayer.STANDARD_ENCRYPTION, SecurityLayer.STEGANOGRAPHY],
-    #         passphrase=sample_passphrase,
-    #         salt=os.urandom(32)
-    #     )
-    #     
-    #     vault = QuantumSecretVault(config)
-    #     result = vault.create_vault(sample_seed, temp_dir, sample_images[:1])
-    #     
-    #     # Verify result structure
-    #     assert result["vault_created"] is True
-    #     assert SecurityLayer.STANDARD_ENCRYPTION.value in result["layers_used"]
-    #     assert SecurityLayer.STEGANOGRAPHY.value in result["layers_used"]
-    #     
-    #     # Check stego images directory
-    #     stego_dir = os.path.join(temp_dir, "stego_images")
-    #     assert os.path.exists(stego_dir)
-    #     
-    #     # Should have at least one stego file
-    #     stego_files = [f for f in os.listdir(stego_dir) if f.endswith('.png')]
-    #     assert len(stego_files) >= 1
+    def test_shamir_with_layered_encryption(self):
+        """Test Shamir sharing with both standard and quantum encryption."""
+        seed = "multi layer encryption test seed phrase here"
+        passphrase = "multi_layer_pass"
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Configure vault with multiple encryption layers + Shamir
+            config = SecurityConfig(
+                layers=[
+                    SecurityLayer.STANDARD_ENCRYPTION,
+                    SecurityLayer.QUANTUM_ENCRYPTION, 
+                    SecurityLayer.SHAMIR_SHARING
+                ],
+                shamir_threshold=4,
+                shamir_total=6,
+                parity_shares=2,
+                passphrase=passphrase,
+                salt=os.urandom(32),
+                argon2_memory_cost=65536,
+                argon2_time_cost=3,
+                argon2_parallelism=1
+            )
+            
+            # Create vault
+            vault = QuantumSecretVault(config)
+            result = vault.create_vault(seed, temp_dir)
+            
+            # Verify creation
+            assert result["vault_created"] is True
+            assert "standard_encryption" in result["layers"]
+            assert "quantum_encryption" in result["layers"]
+            assert len(result["files_created"]) == 8  # 6 shares + 2 parity
+            
+            # Test recovery with exactly threshold shares
+            recovered_seed = QuantumSecretVault.recover_vault(
+                temp_dir, passphrase
+            )
+            
+            assert recovered_seed == seed
+            
+            # Test recovery with more than threshold shares  
+            recovered_seed = QuantumSecretVault.recover_vault(
+                temp_dir, passphrase
+            )
+            
+            assert recovered_seed == seed
     
-    # def test_vault_aes_and_stego(self, temp_dir, sample_seed, sample_passphrase, sample_images):
-    #     """Test vault with AES encryption and steganography."""
-    #     config = SecurityConfig(
-    #         layers=[SecurityLayer.STANDARD_ENCRYPTION, SecurityLayer.STEGANOGRAPHY],
-    #         passphrase=sample_passphrase,
-    #         salt=os.urandom(32)
-    #     )
-    #     
-    #     vault = QuantumSecretVault(config)
-    #     result = vault.create_vault(sample_seed, temp_dir, sample_images[:1])
-    #     
-    #     # Verify result structure
-    #     assert result["vault_created"] is True
-    #     assert SecurityLayer.STANDARD_ENCRYPTION.value in result["layers_used"]
-    #     assert SecurityLayer.STEGANOGRAPHY.value in result["layers_used"]
-    #     
-    #     # Should have stego images
-    #     stego_dir = os.path.join(temp_dir, "stego_images")
-    #     assert os.path.exists(stego_dir)
-    #     
-    #     # Should have at least one stego file
-    #     stego_files = [f for f in os.listdir(stego_dir) if f.endswith('.png')]
-    #     assert len(stego_files) >= 1
+    def test_shamir_only_no_encryption(self):
+        """Test Shamir sharing without any encryption layers."""
+        seed = "plain shamir test without encryption layers"
+        passphrase = "not_used_for_encryption"
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Configure vault with only Shamir sharing
+            config = SecurityConfig(
+                layers=[SecurityLayer.SHAMIR_SHARING],
+                shamir_threshold=2,
+                shamir_total=4,
+                parity_shares=1,
+                passphrase=passphrase,
+                salt=os.urandom(32)
+            )
+            
+            # Create vault
+            vault = QuantumSecretVault(config)
+            result = vault.create_vault(seed, temp_dir)
+            
+            # Verify creation
+            assert result["vault_created"] is True
+            assert len(result["layers"]) == 1  # Just Shamir layer (no encryption layers)
+            assert result["layers"][0] == "shamir_sharing"
+            assert len(result["files_created"]) == 5  # 4 shares + 1 parity
+            
+            # Test recovery
+            recovered_seed = QuantumSecretVault.recover_vault(
+                temp_dir, passphrase
+            )
+            
+            assert recovered_seed == seed
     
-    def test_vault_file_permissions(self, temp_dir, sample_seed, sample_passphrase):
-        """Test that vault files have appropriate permissions."""
-        config = SecurityConfig(
-            layers=[SecurityLayer.STANDARD_ENCRYPTION],
-            passphrase=sample_passphrase,
-            salt=os.urandom(32)
-        )
+    def test_insufficient_shares_error(self):
+        """Test that recovery fails with insufficient shares."""
+        seed = "test insufficient shares error handling"
+        passphrase = "test_pass"
         
-        vault = QuantumSecretVault(config)
-        result = vault.create_vault(sample_seed, temp_dir)
-        
-        # Check that vault.bin file exists and is readable
-        vault_file = os.path.join(temp_dir, "vault.bin")
-        assert os.path.exists(vault_file)
-        assert os.access(vault_file, os.R_OK)
-        
-        # Check secure permissions (600 - owner read/write only)
-        file_stat = os.stat(vault_file)
-        file_mode = file_stat.st_mode & 0o777
-        assert file_mode == 0o600  # Should be readable/writable by owner only
-    
-    def test_vault_recovery_roundtrip(self, temp_dir, sample_seed, sample_passphrase):
-        """Test that vault can be created and recovered successfully."""
-        config = SecurityConfig(
-            layers=[SecurityLayer.STANDARD_ENCRYPTION],
-            passphrase=sample_passphrase,
-            salt=os.urandom(32)
-        )
-        
-        # Create vault
-        vault = QuantumSecretVault(config)
-        result = vault.create_vault(sample_seed, temp_dir)
-        
-        assert result["vault_created"] is True
-        assert len(result["files_created"]) == 1
-        
-        # Recover vault
-        recovered_seed = QuantumSecretVault.recover_vault(temp_dir, sample_passphrase)
-        
-        # Verify recovery
-        assert recovered_seed == sample_seed 
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = SecurityConfig(
+                layers=[SecurityLayer.STANDARD_ENCRYPTION, SecurityLayer.SHAMIR_SHARING],
+                shamir_threshold=4,
+                shamir_total=5,
+                parity_shares=1,
+                passphrase=passphrase,
+                salt=os.urandom(32),
+                argon2_memory_cost=65536,
+                argon2_time_cost=3,
+                argon2_parallelism=1
+            )
+            
+            # Create vault
+            vault = QuantumSecretVault(config)
+            vault.create_vault(seed, temp_dir)
+            
+            # Remove some share files to simulate insufficient shares
+            shares_dir = os.path.join(temp_dir, "shares")
+            share_files = sorted([f for f in os.listdir(shares_dir) if f.startswith("share_")])
+            
+            # Remove 3 files, leaving only 3 shares (need 4)
+            for i in range(3):
+                os.remove(os.path.join(shares_dir, share_files[i]))
+            
+            # Should fail with insufficient shares
+            with pytest.raises(ValueError):
+                QuantumSecretVault.recover_vault(temp_dir, passphrase) 

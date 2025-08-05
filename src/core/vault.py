@@ -51,37 +51,31 @@ class QuantumSecretVault:
     def encrypt_seed(self, seed: str) -> Dict[str, Any]:
         """
         Encrypt seed using selected security layers in a modular, layered approach.
+        All layers including Shamir sharing are handled by LayeredEncryption.
 
         Args:
             seed: Seed string to encrypt
 
         Returns:
-            Dictionary with encrypted data and metadata
+            Dictionary with encrypted data/shares and metadata
         """
-        # Get encryption layers (excluding Shamir and Steganography for now)
-        encryption_layers = [
-            layer
-            for layer in self.config.layers
-            if layer
-            in [SecurityLayer.STANDARD_ENCRYPTION, SecurityLayer.QUANTUM_ENCRYPTION]
-        ]
-
-        # Apply layered encryption if any encryption layers are enabled
-        if encryption_layers:
+        # Apply layered encryption with all configured layers
+        if self.config.layers:
             layered_enc = LayeredEncryption(
                 passphrase=self.config.passphrase,
-                layers=encryption_layers,
+                layers=self.config.layers,
                 memory_cost=self.config.argon2_memory_cost,
                 time_cost=self.config.argon2_time_cost,
                 parallelism=self.config.argon2_parallelism,
+                shamir_threshold=self.config.shamir_threshold,
+                shamir_total=self.config.shamir_total,
+                parity_shares=self.config.parity_shares,
             )
 
             # Encrypt the seed through all layers
-            encrypted_result = layered_enc.encrypt(seed.encode("utf-8"))
-
-            return encrypted_result
+            return layered_enc.encrypt(seed.encode("utf-8"))
         else:
-            # No layers at all - just return the seed
+            # No layers - just encode the seed
             return {
                 "layers": [],
                 "ciphertext": base64.b64encode(seed.encode("utf-8")).decode("utf-8"),
@@ -138,7 +132,7 @@ class QuantumSecretVault:
                                 "Shamir" if i < self.config.shamir_total else "Parity"
                             ),
                             "data": (
-                                share.decode("utf-8")
+                                base64.b64encode(share).decode("utf-8")
                                 if isinstance(share, bytes)
                                 else share
                             ),
@@ -304,8 +298,17 @@ class QuantumSecretVault:
             raise FileNotFoundError(f"Vault directory not found: {vault_dir}")
 
         vault_bin_path = os.path.join(vault_dir, "vault.bin")
-        if not os.path.exists(vault_bin_path):
-            raise FileNotFoundError(f"vault.bin not found in {vault_dir}")
+        shares_path = os.path.join(vault_dir, "shares")
+        
+        # Auto-detect vault type
+        if os.path.exists(vault_bin_path):
+            # Standard vault with vault.bin file - continue with existing logic
+            pass
+        elif os.path.exists(shares_path) or any(f.startswith("share_") and f.endswith(".json") for f in os.listdir(vault_dir)):
+            # Shamir shares vault - load shares and reconstruct vault data
+            return QuantumSecretVault._recover_from_shares(vault_dir, passphrase, show_details=show_details)
+        else:
+            raise FileNotFoundError(f"No vault.bin or share files found in {vault_dir}")
 
         try:
             with open(vault_bin_path, "rb") as f:
@@ -391,3 +394,84 @@ class QuantumSecretVault:
                 
         except Exception as e:
             raise ValueError(f"Decryption failed: {e}")
+
+    @staticmethod
+    def _recover_from_shares(vault_dir: str, passphrase: str, show_details: bool = False) -> str:
+        """
+        Recover from Shamir share files using integrated LayeredEncryption.
+        
+        Args:
+            vault_dir: Directory containing share files
+            passphrase: Passphrase for decryption
+            show_details: If True, print detailed recovery information
+            
+        Returns:
+            Decrypted seed phrase
+        """
+        # Find share files
+        shares_path = os.path.join(vault_dir, "shares")
+        if os.path.exists(shares_path):
+            share_files = [f for f in os.listdir(shares_path) if f.startswith("share_") and f.endswith(".json")]
+            share_files = [os.path.join(shares_path, f) for f in share_files]
+        else:
+            share_files = [os.path.join(vault_dir, f) for f in os.listdir(vault_dir) if f.startswith("share_") and f.endswith(".json")]
+        
+        if not share_files:
+            raise FileNotFoundError(f"No share files found in {vault_dir}")
+        
+        # Load share data
+        shares_data = []
+        layer_info = None
+        
+        for share_file in sorted(share_files):
+            try:
+                with open(share_file, 'r') as f:
+                    share_data = json.load(f)
+                shares_data.append(share_data)
+                
+                # Extract layer info from first share
+                if layer_info is None:
+                    layer_info = share_data.get("layers", [])
+                    
+            except Exception as e:
+                if show_details:
+                    print(f"Warning: Failed to load share file {share_file}: {e}")
+                continue
+        
+        if not shares_data:
+            raise ValueError("No valid share files could be loaded")
+        
+        if show_details:
+            print(f"Found {len(shares_data)} share files")
+            if layer_info:
+                print(f"Layers detected: {[layer.get('layer', 'unknown') for layer in layer_info]}")
+        
+        # Extract raw shares (bytes) - decode from base64 if needed
+        raw_shares = []
+        for share_data in shares_data:
+            if isinstance(share_data["data"], str):
+                # Data is base64 encoded string, decode it back to bytes
+                try:
+                    share_bytes = base64.b64decode(share_data["data"])
+                except Exception:
+                    # Fallback: if not base64, treat as UTF-8 string
+                    share_bytes = share_data["data"].encode('utf-8')
+            else:
+                share_bytes = share_data["data"]
+            raw_shares.append(share_bytes)
+        
+        # Reconstruct vault data structure with shares
+        vault_data = {
+            "layers": layer_info,
+            "shares": raw_shares
+        }
+        
+        # Use LayeredEncryption to decrypt (handles Shamir reconstruction internally)
+        if layer_info:
+            layered_enc = LayeredEncryption.create_from_vault_data(vault_data, passphrase)
+            decrypted_data = layered_enc.decrypt(vault_data)
+            return decrypted_data.decode()
+        else:
+            # No encryption layers - shouldn't happen with Shamir but handle gracefully
+            raise ValueError("No encryption layers found in share data")
+
