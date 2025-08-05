@@ -145,7 +145,7 @@ class LayeredEncryption:
                     "threshold": self.shamir_threshold,
                     "total": self.shamir_total,
                     "parity": self.parity_shares,
-                    "total_shares": self.shamir_total + self.parity_shares
+                    "total_shares": self.shamir_total
                 }
             })
             

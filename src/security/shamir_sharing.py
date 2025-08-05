@@ -1,5 +1,20 @@
 """
-Shamir Secret Sharing with Reed-Solomon error correction.
+Shamir Secret Sharing with integrated Reed-Solomon error correction.
+
+This implementation uses a proper layered approach:
+1. Shamir Secret Sharing: Creates k-of-n threshold shares (any k shares can reconstruct)
+2. Reed-Solomon Error Correction: Embeds error correction within each share
+
+Architecture:
+- Creates exactly 'total' shares (not total + parity)
+- Each share contains Reed-Solomon encoded data for corruption protection
+- Any 'threshold' shares can recover the secret, even with minor corruption
+- Parity data is embedded within each share, not as separate files
+
+Example:
+    shamir = ShamirSharing(threshold=3, total=5, parity=2)
+    shares = shamir.split_secret("my secret")  # Creates 5 shares
+    recovered = shamir.recover_secret(shares[:3])  # Any 3 shares work
 """
 
 from typing import List
@@ -7,7 +22,14 @@ from pyseltongue import SecretSharer
 from reedsolo import RSCodec
 
 class ShamirSharing:
-    """Shamir Secret Sharing with Reed-Solomon error correction"""
+    """
+    Shamir Secret Sharing with integrated Reed-Solomon error correction.
+    
+    Implements proper cryptographic best practices by applying Reed-Solomon
+    error correction to each individual Shamir share, rather than creating
+    separate parity shares. This provides corruption protection while 
+    maintaining the k-of-n threshold property.
+    """
     
     def __init__(self, threshold: int, total: int, parity: int = 2):
         """
@@ -34,38 +56,40 @@ class ShamirSharing:
     
     def split_secret(self, secret: str) -> List[bytes]:
         """
-        Split secret into Shamir shares with Reed-Solomon parity.
+        Split secret into Shamir shares with embedded Reed-Solomon error correction.
         
         Args:
             secret: Secret string to split
             
         Returns:
-            List of share bytes
+            List of Reed-Solomon encoded share bytes (exactly 'total' shares)
         """
         # Handle edge case: threshold=1 (pyseltongue requires >= 2)
         if self.threshold == 1:
-            # For threshold=1, just return the secret as shares
-            secret_bytes = secret.encode('utf-8')
+            # For threshold=1, just return the secret as shares with Reed-Solomon if enabled
             shares = [secret] * self.total
             share_bytes = [s.encode('utf-8') for s in shares]
             
-            # Add parity shares if needed
+            # Apply Reed-Solomon to each share if parity > 0
             if self.parity > 0:
-                for i in range(self.parity):
-                    parity_share = share_bytes[i % len(share_bytes)]
-                    share_bytes.append(parity_share)
-            
-            return share_bytes
+                rsc = RSCodec(self.parity)
+                rs_encoded_shares = []
+                for share_data in share_bytes:
+                    share_ints = list(share_data)
+                    encoded_ints = rsc.encode(share_ints)
+                    rs_encoded_shares.append(bytes(encoded_ints))
+                return rs_encoded_shares
+            else:
+                return share_bytes
         
         # Convert secret to numeric string that pyseltongue can handle
-        # Use only digits 0-9 which are universally supported
         secret_bytes = secret.encode('utf-8')
         numeric_secret = ''.join(f'{byte:03d}' for byte in secret_bytes)
         
-        # Try to split the secret, if it's too long, fall back to chunking
+        # Split into Shamir shares using pyseltongue
         try:
-            # Split into Shamir shares using pyseltongue
-            shares = SecretSharer.split_secret(numeric_secret, self.threshold, self.total)
+            # Create exactly 'total' Shamir shares (not total + parity)
+            shamir_shares = SecretSharer.split_secret(numeric_secret, self.threshold, self.total)
         except ValueError as e:
             if "too long" in str(e):
                 # Secret is too long, use chunking approach
@@ -80,67 +104,61 @@ class ShamirSharing:
                     all_chunk_shares.append(chunk_shares)
                 
                 # Combine chunk shares into final shares
-                shares = []
+                shamir_shares = []
                 for i in range(self.total):
                     combined_share = '|'.join(all_chunk_shares[j][i] for j in range(len(all_chunk_shares)))
-                    shares.append(combined_share)
+                    shamir_shares.append(combined_share)
             else:
                 # Some other error, re-raise
                 raise
         
-        # Convert shares to bytes
-        share_bytes = [s.encode('utf-8') for s in shares]
+        # Convert Shamir shares to bytes
+        share_bytes = [s.encode('utf-8') for s in shamir_shares]
         
-        # Apply Reed-Solomon error correction if parity > 0
+        # Apply Reed-Solomon error correction to each share individually
         if self.parity > 0:
             rsc = RSCodec(self.parity)
-            encoded_shares = []
+            rs_encoded_shares = []
             
             for share_data in share_bytes:
                 # Convert bytes to list of integers for Reed-Solomon
                 share_ints = list(share_data)
                 
-                # Apply Reed-Solomon encoding to get encoded data (original + parity)
+                # Apply Reed-Solomon encoding (embeds error correction within the share)
                 encoded_ints = rsc.encode(share_ints)
                 
                 # Convert back to bytes
-                encoded_shares.append(bytes(encoded_ints))
+                rs_encoded_shares.append(bytes(encoded_ints))
             
-            # Add parity shares (these are redundant encoded versions for additional protection)
-            for i in range(self.parity):
-                # Create additional parity shares by encoding original shares again
-                parity_source = share_bytes[i % len(share_bytes)]
-                parity_ints = list(parity_source)
-                parity_encoded = rsc.encode(parity_ints)
-                encoded_shares.append(bytes(parity_encoded))
-            
-            return encoded_shares
+            return rs_encoded_shares
         else:
-            # No Reed-Solomon, just return raw shares
+            # No Reed-Solomon, just return raw Shamir shares
             return share_bytes
     
     def recover_secret(self, shares: List[bytes]) -> str:
         """
-        Recover secret from shares with error correction.
+        Recover secret from Reed-Solomon encoded shares with automatic error correction.
         
         Args:
-            shares: List of share bytes
+            shares: List of Reed-Solomon encoded share bytes
             
         Returns:
             Recovered secret string
         """
-        # Apply Reed-Solomon error correction if parity > 0
+        if len(shares) < self.threshold:
+            raise ValueError(f"Not enough shares: need at least {self.threshold}, got {len(shares)}")
+        
+        # Step 1: Apply Reed-Solomon decoding to each share (error correction)
         if self.parity > 0:
             rsc = RSCodec(self.parity)
-            corrected_shares = []
+            decoded_shares = []
             
-            # Process the first 'total' shares (original shares, not parity shares)
-            for i in range(min(self.total, len(shares))):
+            for i, share in enumerate(shares[:self.threshold]):  # Only use threshold number of shares
                 try:
                     # Convert bytes to list of integers for Reed-Solomon
-                    share_ints = list(shares[i])
+                    share_ints = list(share)
                     
-                    # Apply Reed-Solomon decoding to correct errors
+                    # Apply Reed-Solomon decoding to correct any errors
                     decoded_result = rsc.decode(share_ints)
                     
                     # rsc.decode returns (corrected_message, corrected_ecc) tuple
@@ -151,35 +169,36 @@ class ShamirSharing:
                         decoded_ints = decoded_result
                     
                     # Convert to bytes - decoded_ints should be a list/array of ints
-                    original_data = bytes(list(decoded_ints))
-                    corrected_shares.append(original_data)
+                    clean_share_data = bytes(list(decoded_ints))
+                    decoded_shares.append(clean_share_data)
                     
-                except Exception:
-                    # If Reed-Solomon correction fails, try using the original share
-                    # This might happen if the share is too corrupted or if it's not RS-encoded
-                    corrected_shares.append(shares[i])
+                except Exception as e:
+                    # If Reed-Solomon correction fails, the share might be too corrupted
+                    raise ValueError(f"Failed to correct errors in share {i}: {e}")
             
-            # Convert corrected shares to strings
-            share_strings = [share.decode('utf-8') for share in corrected_shares]
+            # Convert corrected shares to strings for Shamir reconstruction
+            share_strings = [share.decode('utf-8') for share in decoded_shares]
         else:
             # No Reed-Solomon, use shares directly
-            share_strings = [share.decode('utf-8') for share in shares[:self.total]]
+            share_strings = [share.decode('utf-8') for share in shares[:self.threshold]]
         
         # Handle edge case: threshold=1
         if self.threshold == 1:
             # For threshold=1, shares are just the original secret
             return share_strings[0]
         
+        # Step 2: Apply Shamir secret reconstruction
+        
         # Check if this is a chunked secret (contains '|' separator)
         if '|' in share_strings[0]:
             # This is a chunked secret, need to recover each chunk
             # Split each share into chunks
             chunk_shares = []
-            for share in share_strings[:self.threshold]:
+            for share in share_strings:
                 chunks = share.split('|')
                 chunk_shares.append(chunks)
             
-            # Recover each chunk
+            # Recover each chunk using Shamir
             recovered_chunks = []
             num_chunks = len(chunk_shares[0])
             for chunk_idx in range(num_chunks):
@@ -190,10 +209,10 @@ class ShamirSharing:
             # Combine chunks
             numeric_secret = ''.join(recovered_chunks)
         else:
-            # Recover with Shamir (use minimum threshold)
-            numeric_secret = SecretSharer.recover_secret(share_strings[:self.threshold])
+            # Standard Shamir reconstruction
+            numeric_secret = SecretSharer.recover_secret(share_strings)
         
-        # Convert numeric string back to original secret
+        # Step 3: Convert numeric string back to original secret
         # Each byte was encoded as 3 digits (000-255)
         secret_bytes = []
         for i in range(0, len(numeric_secret), 3):
@@ -214,5 +233,6 @@ class ShamirSharing:
             "threshold": self.threshold,
             "total": self.total,
             "parity": self.parity,
-            "total_shares": self.total + self.parity
+            "total_shares": self.total,  # Reed-Solomon parity is embedded, not separate
+            "error_correction": "Reed-Solomon" if self.parity > 0 else "None"
         } 

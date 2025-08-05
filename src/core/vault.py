@@ -128,9 +128,7 @@ class QuantumSecretVault:
                     json.dump(
                         {
                             "share_id": i,
-                            "share_type": (
-                                "Shamir" if i < self.config.shamir_total else "Parity"
-                            ),
+                            "share_type": "Shamir+Reed-Solomon",
                             "data": (
                                 base64.b64encode(share).decode("utf-8")
                                 if isinstance(share, bytes)

@@ -39,14 +39,14 @@ class TestVaultIntegration:
             # Verify vault creation
             assert result["vault_created"] is True
             assert "standard_encryption" in result["layers"]
-            assert len(result["files_created"]) == 7  # 5 shares + 2 parity shares
+            assert len(result["files_created"]) == 5  # 5 Reed-Solomon encoded shares
             
             # Verify share files exist
             shares_dir = os.path.join(temp_dir, "shares")
             assert os.path.exists(shares_dir)
             
             share_files = [f for f in os.listdir(shares_dir) if f.startswith("share_")]
-            assert len(share_files) == 7  # 5 + 2 parity
+            assert len(share_files) == 5  # 5 Reed-Solomon encoded shares
             
             # Test recovery using the general recover_vault method (auto-detection)  
             recovered_seed = QuantumSecretVault.recover_vault(
@@ -81,7 +81,7 @@ class TestVaultIntegration:
             # Verify creation
             assert result["vault_created"] is True
             assert "quantum_encryption" in result["layers"]
-            assert len(result["files_created"]) == 4  # 3 shares + 1 parity
+            assert len(result["files_created"]) == 3  # 3 Reed-Solomon encoded shares
             
             # Test recovery
             recovered_seed = QuantumSecretVault.recover_vault(
@@ -121,7 +121,7 @@ class TestVaultIntegration:
             assert result["vault_created"] is True
             assert "standard_encryption" in result["layers"]
             assert "quantum_encryption" in result["layers"]
-            assert len(result["files_created"]) == 8  # 6 shares + 2 parity
+            assert len(result["files_created"]) == 6  # 6 Reed-Solomon encoded shares
             
             # Test recovery with exactly threshold shares
             recovered_seed = QuantumSecretVault.recover_vault(
@@ -161,7 +161,7 @@ class TestVaultIntegration:
             assert result["vault_created"] is True
             assert len(result["layers"]) == 1  # Just Shamir layer (no encryption layers)
             assert result["layers"][0] == "shamir_sharing"
-            assert len(result["files_created"]) == 5  # 4 shares + 1 parity
+            assert len(result["files_created"]) == 4  # 4 Reed-Solomon encoded shares
             
             # Test recovery
             recovered_seed = QuantumSecretVault.recover_vault(
@@ -196,7 +196,7 @@ class TestVaultIntegration:
             shares_dir = os.path.join(temp_dir, "shares")
             share_files = sorted([f for f in os.listdir(shares_dir) if f.startswith("share_")])
             
-            # Remove 3 files, leaving only 3 shares (need 4)
+            # Remove 3 files, leaving only 2 shares (need 4)
             for i in range(3):
                 os.remove(os.path.join(shares_dir, share_files[i]))
             
