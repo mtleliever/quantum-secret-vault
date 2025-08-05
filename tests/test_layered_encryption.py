@@ -166,9 +166,9 @@ class TestLayeredEncryption:
             # Find standard encryption layer
             std_layer = next(layer for layer in result["layer_results"] if layer["layer"] == "standard_encryption")
             std_metadata = std_layer["metadata"]
-            assert std_metadata["memory_cost"] == "131072"
-            assert std_metadata["time_cost"] == "3"
-            assert std_metadata["parallelism"] == "1"
+            assert std_metadata["memory_cost"] == 131072
+            assert std_metadata["time_cost"] == 3
+            assert std_metadata["parallelism"] == 1
             assert std_metadata["kdf"] == "Argon2id"
             
             # Find quantum encryption layer

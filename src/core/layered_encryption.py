@@ -24,7 +24,8 @@ class LayeredEncryption:
     
     def __init__(self, passphrase: str, layers: List[SecurityLayer], 
                  memory_cost: int = 524288, time_cost: int = 5, parallelism: int = 1,
-                 shamir_threshold: int = 3, shamir_total: int = 5, parity_shares: int = 2):
+                 shamir_threshold: int = 3, shamir_total: int = 5, parity_shares: int = 2,
+                 salt: Optional[bytes] = None):
         """
         Initialize the layered encryption system.
         
@@ -50,6 +51,7 @@ class LayeredEncryption:
         # Initialize encryption instances
         self.standard_enc = StandardEncryption(
             passphrase,
+            salt=salt,
             memory_cost=memory_cost,
             time_cost=time_cost,
             parallelism=parallelism
@@ -298,6 +300,7 @@ class LayeredEncryption:
         shamir_threshold = 3  # Default
         shamir_total = 5      # Default
         parity_shares = 2     # Default
+        salt = None           # Default
         
         # Extract parameters from the first layer that has them
         for layer_info in layers_data:
@@ -309,6 +312,10 @@ class LayeredEncryption:
                 memory_cost = int(layer_metadata["memory_cost"])
                 time_cost = int(layer_metadata["time_cost"])
                 parallelism = int(layer_metadata["parallelism"])
+            
+            # Extract salt from standard encryption layer
+            if layer_type == "standard_encryption" and "salt" in layer_metadata:
+                salt = base64.b64decode(layer_metadata["salt"])
             
             # Extract Shamir parameters
             if layer_type == "shamir_sharing":
@@ -324,5 +331,6 @@ class LayeredEncryption:
             parallelism=parallelism,
             shamir_threshold=shamir_threshold,
             shamir_total=shamir_total,
-            parity_shares=parity_shares
+            parity_shares=parity_shares,
+            salt=salt
         ) 

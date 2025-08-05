@@ -38,9 +38,9 @@ class TestStandardEncryption:
         # Test that encryption uses the custom parameters
         data = b"test data"
         encrypted = enc.encrypt(data)
-        assert encrypted["memory_cost"] == str(memory_cost)
-        assert encrypted["time_cost"] == str(time_cost)
-        assert encrypted["parallelism"] == str(parallelism)
+        assert encrypted["memory_cost"] == memory_cost
+        assert encrypted["time_cost"] == time_cost
+        assert encrypted["parallelism"] == parallelism
     
     def test_key_derivation(self, sample_passphrase):
         """Test Argon2id key derivation."""
@@ -62,9 +62,9 @@ class TestStandardEncryption:
         # Verify encryption structure
         assert encrypted["encryption_type"] == "AES-256-GCM"
         assert encrypted["kdf"] == "Argon2id"
-        assert encrypted["memory_cost"] == "524288"  # 512 MiB default
-        assert encrypted["time_cost"] == "5"  # 5 iterations default
-        assert encrypted["parallelism"] == "1"  # 1 thread default
+        assert encrypted["memory_cost"] == 524288  # 512 MiB default
+        assert encrypted["time_cost"] == 5  # 5 iterations default
+        assert encrypted["parallelism"] == 1  # 1 thread default
         assert "salt" in encrypted
         assert "nonce" in encrypted
         assert "ciphertext" in encrypted

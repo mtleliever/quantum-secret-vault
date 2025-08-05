@@ -70,6 +70,7 @@ class QuantumSecretVault:
                 shamir_threshold=self.config.shamir_threshold,
                 shamir_total=self.config.shamir_total,
                 parity_shares=self.config.parity_shares,
+                salt=self.config.salt,
             )
 
             # Encrypt the seed through all layers
@@ -123,22 +124,19 @@ class QuantumSecretVault:
             # Multiple shares
             shares = result["shares"]
             for i, share in enumerate(shares):
-                share_file = f"{output_dir}/shares/share_{i}.json"
-                with open(share_file, "w") as f:
-                    json.dump(
-                        {
-                            "share_id": i,
-                            "share_type": "Shamir+Reed-Solomon",
-                            "data": (
-                                base64.b64encode(share).decode("utf-8")
-                                if isinstance(share, bytes)
-                                else share
-                            ),
-                            "layers": result["layers"],
-                        },
-                        f,
-                        indent=2,
-                    )
+                share_file = f"{output_dir}/shares/share_{i}.bin"
+                share_data = {
+                    "share_id": i,
+                    "share_type": "Shamir+Reed-Solomon",
+                    "data": (
+                        base64.b64encode(share).decode("utf-8")
+                        if isinstance(share, bytes)
+                        else share
+                    ),
+                    "layers": result["layers"],
+                }
+                with open(share_file, "wb") as f:
+                    cbor2.dump(share_data, f)
                 vault_info["files_created"].append(share_file)
 
                 # Add steganography if enabled
@@ -302,7 +300,7 @@ class QuantumSecretVault:
         if os.path.exists(vault_bin_path):
             # Standard vault with vault.bin file - continue with existing logic
             pass
-        elif os.path.exists(shares_path) or any(f.startswith("share_") and f.endswith(".json") for f in os.listdir(vault_dir)):
+        elif os.path.exists(shares_path) or any(f.startswith("share_") and f.endswith(".bin") for f in os.listdir(vault_dir)):
             # Shamir shares vault - load shares and reconstruct vault data
             return QuantumSecretVault._recover_from_shares(vault_dir, passphrase, show_details=show_details)
         else:
@@ -409,10 +407,10 @@ class QuantumSecretVault:
         # Find share files
         shares_path = os.path.join(vault_dir, "shares")
         if os.path.exists(shares_path):
-            share_files = [f for f in os.listdir(shares_path) if f.startswith("share_") and f.endswith(".json")]
+            share_files = [f for f in os.listdir(shares_path) if f.startswith("share_") and f.endswith(".bin")]
             share_files = [os.path.join(shares_path, f) for f in share_files]
         else:
-            share_files = [os.path.join(vault_dir, f) for f in os.listdir(vault_dir) if f.startswith("share_") and f.endswith(".json")]
+            share_files = [os.path.join(vault_dir, f) for f in os.listdir(vault_dir) if f.startswith("share_") and f.endswith(".bin")]
         
         if not share_files:
             raise FileNotFoundError(f"No share files found in {vault_dir}")
@@ -423,8 +421,8 @@ class QuantumSecretVault:
         
         for share_file in sorted(share_files):
             try:
-                with open(share_file, 'r') as f:
-                    share_data = json.load(f)
+                with open(share_file, 'rb') as f:
+                    share_data = cbor2.load(f)
                 shares_data.append(share_data)
                 
                 # Extract layer info from first share

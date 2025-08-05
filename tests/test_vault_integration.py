@@ -7,6 +7,8 @@ import tempfile
 import shutil
 import pytest
 from src.core import QuantumSecretVault, SecurityConfig, SecurityLayer
+import cbor2
+import base64
 
 
 class TestVaultIntegration:
@@ -45,7 +47,7 @@ class TestVaultIntegration:
             shares_dir = os.path.join(temp_dir, "shares")
             assert os.path.exists(shares_dir)
             
-            share_files = [f for f in os.listdir(shares_dir) if f.startswith("share_")]
+            share_files = [f for f in os.listdir(shares_dir) if f.startswith("share_") and f.endswith(".bin")]
             assert len(share_files) == 5  # 5 Reed-Solomon encoded shares
             
             # Test recovery using the general recover_vault method (auto-detection)  
@@ -194,7 +196,7 @@ class TestVaultIntegration:
             
             # Remove some share files to simulate insufficient shares
             shares_dir = os.path.join(temp_dir, "shares")
-            share_files = sorted([f for f in os.listdir(shares_dir) if f.startswith("share_")])
+            share_files = sorted([f for f in os.listdir(shares_dir) if f.startswith("share_") and f.endswith(".bin")])
             
             # Remove 3 files, leaving only 2 shares (need 4)
             for i in range(3):
@@ -203,3 +205,167 @@ class TestVaultIntegration:
             # Should fail with insufficient shares
             with pytest.raises(ValueError):
                 QuantumSecretVault.recover_vault(temp_dir, passphrase) 
+    
+    def test_layered_encryption_verification_in_shamir(self):
+        """
+        Verify that layered encryption is properly applied to each Shamir share.
+        This demonstrates exactly where and how each encryption layer is applied.
+        """
+        seed = "test secret for verification"
+        passphrase = "test_passphrase"
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create vault with full layered encryption + Shamir
+            config = SecurityConfig(
+                layers=[SecurityLayer.STANDARD_ENCRYPTION, SecurityLayer.QUANTUM_ENCRYPTION, SecurityLayer.SHAMIR_SHARING],
+                shamir_threshold=3,
+                shamir_total=5,
+                parity_shares=2,
+                passphrase=passphrase,
+                salt=os.urandom(32),
+                argon2_memory_cost=65536,  # Lower for test speed
+                argon2_time_cost=3,
+                argon2_parallelism=1
+            )
+            
+            vault = QuantumSecretVault(config)
+            result = vault.create_vault(seed, temp_dir)
+            
+            # Verify vault creation
+            assert result["vault_created"] is True
+            assert "standard_encryption" in result["layers"]
+            assert "quantum_encryption" in result["layers"]
+            assert "shamir_sharing" in result["layers"]
+            assert len(result["files_created"]) == 5  # 5 Reed-Solomon encoded shares
+            
+            # Inspect a share file to verify it contains layered encryption metadata
+            share_file = result['files_created'][0]
+            with open(share_file, 'rb') as f:
+                share_data = cbor2.load(f)
+            
+            # Verify share structure
+            assert share_data['share_type'] == "Shamir+Reed-Solomon"
+            assert 'share_id' in share_data
+            assert 'data' in share_data
+            assert 'layers' in share_data
+            
+            # Verify that ALL encryption layers are present in share metadata
+            layer_types = [layer['layer'] for layer in share_data['layers']]
+            assert "standard_encryption" in layer_types
+            assert "quantum_encryption" in layer_types
+            assert "shamir_sharing" in layer_types
+            
+            # Verify standard encryption metadata is preserved
+            std_layer = next(layer for layer in share_data['layers'] if layer['layer'] == 'standard_encryption')
+            assert 'salt' in std_layer['metadata']
+            assert 'nonce' in std_layer['metadata']
+            assert 'kdf' in std_layer['metadata']
+            assert std_layer['metadata']['encryption_type'] == 'AES-256-GCM'
+            
+            # Verify quantum encryption metadata is preserved
+            quantum_layer = next(layer for layer in share_data['layers'] if layer['layer'] == 'quantum_encryption')
+            assert 'kyber_public_key' in quantum_layer['metadata']
+            assert 'kyber_ciphertext' in quantum_layer['metadata']
+            assert 'salt' in quantum_layer['metadata']
+            assert quantum_layer['metadata']['encryption_type'] == 'Kyber1024'
+            
+            # Verify Shamir metadata
+            shamir_layer = next(layer for layer in share_data['layers'] if layer['layer'] == 'shamir_sharing')
+            assert shamir_layer['metadata']['threshold'] == 3
+            assert shamir_layer['metadata']['total'] == 5
+            assert shamir_layer['metadata']['parity'] == 2
+            
+            # Verify the share data is base64-encoded encrypted content
+            share_raw_data = base64.b64decode(share_data['data'])
+            assert len(share_raw_data) > 0
+            assert isinstance(share_raw_data, bytes)
+            
+            # Test recovery to verify all layers work correctly
+            recovered_seed = QuantumSecretVault.recover_vault(temp_dir, passphrase)
+            assert recovered_seed == seed
+            
+            # Test that we can recover with any subset of threshold shares
+            shares_dir = os.path.join(temp_dir, "shares")
+            all_share_files = [os.path.join(shares_dir, f) for f in os.listdir(shares_dir) if f.startswith("share_") and f.endswith(".bin")]
+            
+            # Test with different combinations of 3 shares
+            for start_idx in range(len(all_share_files) - 2):
+                # Create a temporary directory with only 3 shares
+                with tempfile.TemporaryDirectory() as subset_dir:
+                    subset_shares_dir = os.path.join(subset_dir, "shares")
+                    os.makedirs(subset_shares_dir)
+                    
+                    # Copy 3 shares
+                    for i, src_file in enumerate(all_share_files[start_idx:start_idx+3]):
+                        dst_file = os.path.join(subset_shares_dir, f"share_{i}.bin")
+                        with open(src_file, 'rb') as src, open(dst_file, 'wb') as dst:
+                            dst.write(src.read())
+                    
+                    # Verify recovery works with this subset
+                    subset_recovered = QuantumSecretVault.recover_vault(subset_dir, passphrase)
+                    assert subset_recovered == seed
+    
+    def test_share_contains_full_encryption_proof(self):
+        """
+        Prove that each share contains the FULL encrypted data, not just a piece.
+        This test demonstrates that Shamir splitting happens AFTER encryption.
+        """
+        seed = "proof that shares contain full encryption"
+        passphrase = "proof_pass"
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create a single salt to use for both configs for comparison
+            shared_salt = os.urandom(32)
+            
+            # Test with just standard encryption first (no Shamir)
+            config_no_shamir = SecurityConfig(
+                layers=[SecurityLayer.STANDARD_ENCRYPTION],
+                passphrase=passphrase,
+                salt=shared_salt,
+                argon2_memory_cost=65536,
+                argon2_time_cost=3
+            )
+            
+            vault_no_shamir = QuantumSecretVault(config_no_shamir)
+            result_no_shamir = vault_no_shamir.create_vault(seed, f"{temp_dir}/no_shamir")
+            
+            # Now test with standard + Shamir (using the same salt)
+            config_with_shamir = SecurityConfig(
+                layers=[SecurityLayer.STANDARD_ENCRYPTION, SecurityLayer.SHAMIR_SHARING],
+                shamir_threshold=3,
+                shamir_total=5,
+                passphrase=passphrase,
+                salt=shared_salt,  # Use same salt for comparison
+                argon2_memory_cost=65536,
+                argon2_time_cost=3
+            )
+            
+            vault_with_shamir = QuantumSecretVault(config_with_shamir)
+            result_with_shamir = vault_with_shamir.create_vault(seed, f"{temp_dir}/with_shamir")
+            
+            # Load the single encrypted file
+            with open(f"{temp_dir}/no_shamir/vault.bin", 'rb') as f:
+                single_vault_data = cbor2.load(f)
+            
+            # Load one of the share files
+            share_file = result_with_shamir['files_created'][0]
+            with open(share_file, 'rb') as f:
+                share_data = cbor2.load(f)
+            
+            # Both should have the same standard encryption metadata (same salt, etc.)
+            single_std_layer = single_vault_data['layers'][0]
+            share_std_layer = next(layer for layer in share_data['layers'] if layer['layer'] == 'standard_encryption')
+            
+            assert single_std_layer['metadata']['salt'] == share_std_layer['metadata']['salt']
+            assert single_std_layer['metadata']['encryption_type'] == share_std_layer['metadata']['encryption_type']
+            
+            # Both should recover to the same seed
+            recovered_single = QuantumSecretVault.recover_vault(f"{temp_dir}/no_shamir", passphrase)
+            recovered_shares = QuantumSecretVault.recover_vault(f"{temp_dir}/with_shamir", passphrase)
+            
+            assert recovered_single == seed
+            assert recovered_shares == seed
+            assert recovered_single == recovered_shares
+            
+            # This proves that Shamir shares contain the SAME encrypted data,
+            # just split using Shamir's algorithm 

@@ -103,9 +103,9 @@ vault_output/
 ```
 vault_output/
 ├── shares/                     # Encrypted share files
-│   ├── share_0.json           # Share 0 (Shamir)
-│   ├── share_1.json           # Share 1 (Shamir)
-│   ├── share_2.json           # Share 2 (Parity)
+│   ├── share_0.bin            # Reed-Solomon encoded Shamir share 0
+│   ├── share_1.bin            # Reed-Solomon encoded Shamir share 1
+│   ├── share_2.bin            # Reed-Solomon encoded Shamir share 2
 │   └── ...
 ├── stego_images/              # (if steganography enabled)
 │   ├── share_0.png           # Hidden share 0
@@ -179,17 +179,18 @@ with open('encrypted_seed.json') as f:
 # Collect required shares
 shares = []
 for i in range(threshold):
-    with open(f'share_{i}.json') as f:
-        shares.append(json.load(f)['data'])
+    with open(f'share_{i}.bin', 'rb') as f:
+        share_data = cbor2.load(f)
+        shares.append(base64.b64decode(share_data['data']))
 
-# Recover secret
+# Recover secret  
 recovered = shamir.recover_secret(shares)
 ```
 
 ### **3. Steganography Recovery**
 ```bash
 # Extract hidden data from images
-steghide extract -sf share_0.png -p "QuantumVault2024!" -xf share_0.json
+steghide extract -sf share_0.png -p "QuantumVault2024!" -xf share_0.bin
 ```
 
 ---
