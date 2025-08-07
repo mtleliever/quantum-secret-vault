@@ -40,8 +40,8 @@ Examples:
     create_parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
 
     # Recover subcommand
-    recover_parser = subparsers.add_parser("recover", help="Recover a seed from a vault directory (AES only)")
-    recover_parser.add_argument("--vault-dir", required=True, help="Path to vault directory (containing vault_config.json)")
+    recover_parser = subparsers.add_parser("recover", help="Recover a seed from a vault directory (supports both single files and Shamir shares)")
+    recover_parser.add_argument("--vault-dir", required=True, help="Path to vault directory (containing vault.bin or share files)")
     recover_parser.add_argument("--passphrase", required=True, help="Passphrase for decryption")
     recover_parser.add_argument("-v", "--verbose", action="store_true", help="Show detailed vault information before recovery")
 

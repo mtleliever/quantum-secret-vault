@@ -62,9 +62,9 @@ class StandardEncryption:
             "nonce": base64.b64encode(nonce).decode('utf-8'),
             "ciphertext": base64.b64encode(ciphertext).decode('utf-8'),
             "kdf": "Argon2id",
-            "memory_cost": str(self.memory_cost),
-            "time_cost": str(self.time_cost),
-            "parallelism": str(self.parallelism)
+            "memory_cost": self.memory_cost,
+            "time_cost": self.time_cost,
+            "parallelism": self.parallelism
         }
     
     def decrypt(self, encrypted_data: Dict[str, Any]) -> bytes:
