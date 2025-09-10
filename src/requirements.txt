@@ -2,6 +2,5 @@ argon2-cffi==23.1.0  # Argon2id key derivation (more secure than PBKDF2)
 reedsolo==1.7.0  # Needed for Reed-Solomon error correction
 # liboqs-python installed from source in dockerfile due to PyPI unavailability
 cryptography==41.0.7
-stegano==0.9.3
 pyseltongue==1.0.2  # Python 3 compatible Shamir secret sharing
 cbor2==5.6.5

@@ -5,7 +5,7 @@ A secure toolkit for encrypting and protecting secrets using multiple security l
 - Standard encryption (AES-256-GCM)
 - Quantum encryption (Kyber-1024)
 - Shamir secret sharing
-- Steganography
+
 """
 
 __version__ = "1.0.0"

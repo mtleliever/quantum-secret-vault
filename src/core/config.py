@@ -11,7 +11,6 @@ class SecurityLayer(Enum):
     STANDARD_ENCRYPTION = "standard_encryption"
     QUANTUM_ENCRYPTION = "quantum_encryption"
     SHAMIR_SHARING = "shamir_sharing"
-    STEGANOGRAPHY = "steganography"
 
 @dataclass
 class SecurityConfig:

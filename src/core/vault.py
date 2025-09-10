@@ -13,7 +13,7 @@ from ..security.quantum_encryption import (
     QuantumEncryption,
 )  # Now enabled with liboqs properly installed
 from ..security.shamir_sharing import ShamirSharing
-from ..security.steganography import Steganography
+
 from .config import SecurityConfig, SecurityLayer
 from .layered_encryption import LayeredEncryption
 from ..utils.file_utils import set_secure_permissions
@@ -46,7 +46,7 @@ class QuantumSecretVault:
         self.shamir = ShamirSharing(
             config.shamir_threshold, config.shamir_total, config.parity_shares
         )
-        self.stego = Steganography()
+
 
     def encrypt_seed(self, seed: str) -> Dict[str, Any]:
         """
@@ -83,7 +83,7 @@ class QuantumSecretVault:
             }
 
     def create_vault(
-        self, seed: str, output_dir: str, images: Optional[List[str]] = None
+        self, seed: str, output_dir: str
     ) -> Dict[str, Any]:
         """
         Create the complete vault with all selected layers.
@@ -91,7 +91,6 @@ class QuantumSecretVault:
         Args:
             seed: Seed string to protect
             output_dir: Directory to create vault in
-            images: Optional list of image paths for steganography
 
         Returns:
             Dictionary with vault creation information
@@ -103,8 +102,6 @@ class QuantumSecretVault:
         # Create subdirectories based on layers
         if self.config.has_layer(SecurityLayer.SHAMIR_SHARING):
             os.makedirs(f"{output_dir}/shares", exist_ok=True)
-        if self.config.has_layer(SecurityLayer.STEGANOGRAPHY):
-            os.makedirs(f"{output_dir}/stego_images", exist_ok=True)
 
         # Encrypt the seed
         result = self.encrypt_seed(seed)
@@ -139,15 +136,7 @@ class QuantumSecretVault:
                     cbor2.dump(share_data, f)
                 vault_info["files_created"].append(share_file)
 
-                # Add steganography if enabled
-                if (
-                    self.config.has_layer(SecurityLayer.STEGANOGRAPHY)
-                    and images
-                    and i < len(images)
-                ):
-                    stego_file = f"{output_dir}/stego_images/share_{i}.png"
-                    if self.stego.embed_data(share_file, images[i], stego_file):
-                        vault_info["files_created"].append(stego_file)
+
         else:
             # Single encrypted file (CBOR binary)
             vault_bin_file = f"{output_dir}/vault.bin"
@@ -163,11 +152,7 @@ class QuantumSecretVault:
                 vault_info["files_created"].append(vault_bin_file)
             except Exception as e:
                 raise IOError(f"Failed to create vault file: {e}")
-            # Add steganography if enabled
-            if self.config.has_layer(SecurityLayer.STEGANOGRAPHY) and images:
-                stego_file = f"{output_dir}/stego_images/vault.bin.png"
-                if self.stego.embed_data(vault_bin_file, images[0], stego_file):
-                    vault_info["files_created"].append(stego_file)
+
 
         # All configuration is embedded in the vault.bin CBOR file
         return vault_info

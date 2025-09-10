@@ -3,15 +3,15 @@
 ![Docker](https://img.shields.io/badge/Docker-✓-blue?logo=docker)  
 ![Quantum-Safe](https://img.shields.io/badge/Quantum_Resistant-✓-green)  
 ![Layered Security](https://img.shields.io/badge/Layered_Security-✓-purple)  
-![Steganography](https://img.shields.io/badge/Steganography-✓-orange)  
+  
 
-A secure toolkit to encrypt and protect text secrets using **layered security architecture** with **quantum-resistant cryptography** and **steganography**.  
+A secure toolkit to encrypt and protect text secrets using **layered security architecture** with **quantum-resistant cryptography**.  
 
 ---
 
 ## 🏗️ Layered Security Architecture
 
-The vault supports **4 security layers** that can be combined in any order:
+The vault supports **3 security layers** that can be combined in any order:
 
 ### 🔐 **Layer 1: Standard Encryption**
 - **AES-256-GCM** encryption with **Argon2id** key derivation
@@ -32,10 +32,7 @@ The vault supports **4 security layers** that can be combined in any order:
 - **Geographic distribution** capability
 - **Redundancy** against partial compromise
 
-### 🖼️ **Layer 4: Steganography**
-- **Steghide** for robust data hiding in images
-- **Plausible deniability** - data looks like normal images
-- **Multiple image formats** supported (PNG, BMP, JPEG)
+
 
 ---
 
@@ -73,11 +70,7 @@ The vault supports **4 security layers** that can be combined in any order:
 ```
 *Output: 5 ultra-secure shares (need 3 to recover)*
 
-#### **Full Security Stack with Steganography**
-```bash
-./run.sh create "word1 word2 ... word24" "password" standard_encryption quantum_encryption shamir_sharing steganography --memory 2097152 --time 15 --threads 4 --shamir 3 5 image1.png image2.png image3.png image4.png image5.png
-```
-*Output: 5 stego images with hidden ultra-secure shares*
+
 
 
 ### 2. **Recover Vault**
@@ -93,25 +86,17 @@ The vault supports **4 security layers** that can be combined in any order:
 ### **Single File Vault** (no Shamir sharing)
 ```
 vault_output/
-├── encrypted_seed.json          # Encrypted seed data
-├── vault_config.json           # Vault configuration
-└── stego_images/               # (if steganography enabled)
-    └── encrypted_seed.png      # Hidden encrypted data
+└── vault.bin                   # Encrypted seed data
 ```
 
 ### **Multi-Share Vault** (with Shamir sharing)
 ```
 vault_output/
-├── shares/                     # Encrypted share files
-│   ├── share_0.bin            # Reed-Solomon encoded Shamir share 0
-│   ├── share_1.bin            # Reed-Solomon encoded Shamir share 1
-│   ├── share_2.bin            # Reed-Solomon encoded Shamir share 2
-│   └── ...
-├── stego_images/              # (if steganography enabled)
-│   ├── share_0.png           # Hidden share 0
-│   ├── share_1.png           # Hidden share 1
-│   └── ...
-└── vault_config.json         # Vault configuration
+└── shares/                     # Encrypted share files
+    ├── share_0.bin            # Reed-Solomon encoded Shamir share 0
+    ├── share_1.bin            # Reed-Solomon encoded Shamir share 1
+    ├── share_2.bin            # Reed-Solomon encoded Shamir share 2
+    └── ...
 ```
 
 ---
@@ -187,11 +172,7 @@ for i in range(threshold):
 recovered = shamir.recover_secret(shares)
 ```
 
-### **3. Steganography Recovery**
-```bash
-# Extract hidden data from images
-steghide extract -sf share_0.png -p "QuantumVault2024!" -xf share_0.bin
-```
+
 
 ---
 
@@ -218,7 +199,7 @@ steghide extract -sf share_0.png -p "QuantumVault2024!" -xf share_0.bin
 | + High Security Parameters (1GB/12it) | 🔒⚛️🚀 Enhanced | Significantly increased resistance | Extremely sensitive secrets |
 | + Ultra-High Parameters (4GB/20it) | 🔒⚛️🚀💎 Ultimate | Maximum computational resistance | High-value asset protection |
 | + `shamir_sharing` | 🔀 Distributed | Same + Redundancy | Geographic backup, redundancy |
-| + `steganography` | 🖼️ Hidden | Same + Deniability | Plausible deniability, covert ops |
+
 
 ### **Parameter Impact on Security**
 - **Memory Cost**: Exponential impact on computational difficulty (2x memory = 2x harder to attack)
@@ -250,7 +231,7 @@ chmod +x test.sh
 - **cryptography**: Standard encryption (AES, PBKDF2)
 - **secretsharing**: Shamir secret sharing
 - **reedsolo**: Reed-Solomon error correction
-- **stegano**: Steganography (Python library)
+
 - **pytest**: Testing framework (optional)
 - **argon2-cffi**: Password hashing
 

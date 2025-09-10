@@ -29,18 +29,4 @@ def sample_passphrase():
     """Sample passphrase for testing."""
     return "my_test_passphrase_123"
 
-@pytest.fixture
-def sample_images():
-    """Create sample image files for steganography tests."""
-    temp_dir = tempfile.mkdtemp()
-    images = []
-    
-    # Create simple text files as "images" for testing
-    for i in range(7):
-        img_path = os.path.join(temp_dir, f"test_image_{i}.txt")
-        with open(img_path, 'w') as f:
-            f.write(f"This is test image {i} for steganography testing.")
-        images.append(img_path)
-    
-    yield images
-    shutil.rmtree(temp_dir, ignore_errors=True) 
+ 

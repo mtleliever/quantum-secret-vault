@@ -32,7 +32,7 @@ Examples:
     create_parser.add_argument("--layers", nargs='+', choices=[layer.value for layer in SecurityLayer], default=[SecurityLayer.STANDARD_ENCRYPTION.value], help="Security layers to apply (can combine multiple)")
     create_parser.add_argument("--shamir", nargs=2, type=int, metavar=('THRESHOLD', 'TOTAL'), help="Shamir sharing parameters (e.g., 5 7)")
     create_parser.add_argument("--parity", type=int, default=2, help="Reed-Solomon parity shares (default: 2)")
-    create_parser.add_argument("--images", nargs='+', help="Image files for steganography")
+
     create_parser.add_argument("--output-dir", type=str, default="quantum_vault", help="Output directory (default: quantum_vault)")
     create_parser.add_argument("--memory", type=int, default=524288, help="Argon2 memory cost in KiB (default: 512 MiB)")
     create_parser.add_argument("--time", type=int, default=5, help="Argon2 time cost iterations (default: 5)")
@@ -84,19 +84,7 @@ def validate_arguments(args: argparse.Namespace) -> None:
         if total < 2:
             raise ValueError("Shamir total must be at least 2")
     
-    # Validate steganography requirements
-    if SecurityLayer.STEGANOGRAPHY in layers:
-        if not args.images:
-            raise ValueError("--images is required when using steganography layer")
-        
-        # Check if we have enough images for all shares
-        if SecurityLayer.SHAMIR_SHARING in layers:
-            required_images = args.shamir[1] + args.parity if args.shamir else 1
-            if len(args.images) < required_images:
-                raise ValueError(f"Need at least {required_images} images for steganography, got {len(args.images)}")
-        else:
-            if len(args.images) < 1:
-                raise ValueError("Need at least 1 image for steganography")
+
 
 def create_vault(args: argparse.Namespace) -> None:
     """Create the quantum vault with specified configuration."""
@@ -131,12 +119,11 @@ def create_vault(args: argparse.Namespace) -> None:
         print(f"[*] Computational resistance: Memory-hard key derivation with configurable difficulty")
         if SecurityLayer.SHAMIR_SHARING in layers:
             print(f"[*] Shamir sharing: {threshold}-of-{total} with {args.parity} parity shares")
-        if SecurityLayer.STEGANOGRAPHY in layers:
-            print(f"[*] Steganography: {len(args.images)} images provided")
+
     
     # Create vault
     vault = QuantumSecretVault(config)
-    result = vault.create_vault(args.seed, args.output_dir, args.images)
+    result = vault.create_vault(args.seed, args.output_dir)
     
     # Output results
     print(f"[+] Quantum vault created in {args.output_dir}")
