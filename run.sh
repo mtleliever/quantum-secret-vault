@@ -25,7 +25,7 @@ if [[ "$MODE" == "recover" ]]; then
   fi
   echo "Running vault recovery..."
   if [[ -n "$ADDITIONAL_ARGS" ]]; then
-    docker run --rm -it \
+    docker run --rm -it --user root \
       -v "$(pwd)/$VAULT_DIR/:/vault/" \
       --entrypoint="" \
       quantum-secret-vault:latest \
@@ -34,7 +34,7 @@ if [[ "$MODE" == "recover" ]]; then
       --passphrase "$PASSPHRASE" \
       $ADDITIONAL_ARGS
   else
-    docker run --rm -it \
+    docker run --rm -it --user root \
       -v "$(pwd)/$VAULT_DIR/:/vault/" \
       --entrypoint="" \
       quantum-secret-vault:latest \
@@ -57,7 +57,7 @@ else
   # Create output directory
   mkdir -p vault_output
   # Run the vault creation directly with Python (bypassing entrypoint)
-  docker run --rm -it \
+  docker run --rm -it --user root \
     -v "$(pwd)/vault_output/:/output/" \
     --entrypoint="" \
     quantum-secret-vault:latest \
