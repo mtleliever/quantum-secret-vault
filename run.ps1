@@ -30,7 +30,7 @@ if ($Mode -eq "recover") {
     }
     Write-Host "Running vault recovery..."
     if ($AdditionalArgs.Count -gt 0) {
-        docker run --rm -it `
+        docker run --rm -it --user root `
           -v "${PWD}/${VaultDir}:/vault/" `
           --entrypoint="" `
           quantum-secret-vault:latest `
@@ -39,7 +39,7 @@ if ($Mode -eq "recover") {
           --passphrase "$Passphrase" `
           $AdditionalArgs
     } else {
-        docker run --rm -it `
+        docker run --rm -it --user root `
           -v "${PWD}/${VaultDir}:/vault/" `
           --entrypoint="" `
           quantum-secret-vault:latest `
@@ -64,9 +64,9 @@ if ($Mode -eq "recover") {
         New-Item -ItemType Directory -Path $VaultOutput | Out-Null
     }
     
-    # Build the docker command with layers as single argument
+    # Build the docker command with layers as single argument - run as root to fix permissions
     $dockerCmd = @(
-        "docker", "run", "--rm", "-it",
+        "docker", "run", "--rm", "-it", "--user", "root",
         "-v", "${VaultOutput}:/output/",
         "--entrypoint=",
         "quantum-secret-vault:latest",
