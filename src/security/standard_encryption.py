@@ -4,12 +4,24 @@ Standard encryption using AES-256-GCM with Argon2id key derivation.
 
 import os
 import base64
+import time
 from typing import Dict, Any, Optional
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from argon2.low_level import Type, hash_secret_raw
 
+
+def _secure_zero(data: bytearray) -> None:
+    """Securely zero out a bytearray."""
+    for i in range(len(data)):
+        data[i] = 0
+
+
 class StandardEncryption:
-    """Standard AES-256-GCM encryption with Argon2id key derivation"""
+    """
+    Standard AES-256-GCM encryption with Argon2id key derivation.
+    
+    Security: Passphrase is stored as bytearray for secure zeroing.
+    """
     
     def __init__(self, passphrase: str, salt: Optional[bytes] = None, 
                  memory_cost: int = 524288, time_cost: int = 5, parallelism: int = 1):
@@ -23,16 +35,27 @@ class StandardEncryption:
             time_cost: Number of iterations (default: 5)
             parallelism: Number of parallel threads (default: 1)
         """
-        self.passphrase = passphrase
+        # Store passphrase as bytearray for secure zeroing later
+        self._passphrase_bytes = bytearray(passphrase.encode('utf-8'))
         self.salt = salt or os.urandom(32)
         self.memory_cost = memory_cost  # 512 MiB default
         self.time_cost = time_cost      # 5 iterations default
         self.parallelism = parallelism  # 1 thread default
+    
+    def __del__(self):
+        """Securely zero passphrase bytes on destruction."""
+        if hasattr(self, '_passphrase_bytes'):
+            _secure_zero(self._passphrase_bytes)
+    
+    def _derive_key(self) -> bytearray:
+        """
+        Derive AES key using Argon2id with configurable parameters.
         
-    def derive_key(self) -> bytes:
-        """Derive AES key using Argon2id with configurable parameters"""
-        return hash_secret_raw(
-            secret=self.passphrase.encode('utf-8'),
+        Returns:
+            32-byte derived key as bytearray for secure zeroing
+        """
+        derived = hash_secret_raw(
+            secret=bytes(self._passphrase_bytes),
             salt=self.salt,
             time_cost=self.time_cost,
             memory_cost=self.memory_cost,
@@ -40,6 +63,7 @@ class StandardEncryption:
             hash_len=32,  # 256-bit key
             type=Type.ID  # Argon2id variant (recommended)
         )
+        return bytearray(derived)
     
     def encrypt(self, data: bytes) -> Dict[str, Any]:
         """
@@ -51,21 +75,31 @@ class StandardEncryption:
         Returns:
             Dictionary containing encrypted data and metadata
         """
-        key = self.derive_key()
-        nonce = os.urandom(12)
-        cipher = AESGCM(key)
-        ciphertext = cipher.encrypt(nonce, data, None)
+        key = self._derive_key()
         
-        return {
-            "encryption_type": "AES-256-GCM",
-            "salt": base64.b64encode(self.salt).decode('utf-8'),
-            "nonce": base64.b64encode(nonce).decode('utf-8'),
-            "ciphertext": base64.b64encode(ciphertext).decode('utf-8'),
-            "kdf": "Argon2id",
-            "memory_cost": self.memory_cost,
-            "time_cost": self.time_cost,
-            "parallelism": self.parallelism
-        }
+        try:
+            nonce = os.urandom(12)
+            cipher = AESGCM(bytes(key))
+            
+            # Build AAD to bind ciphertext to its metadata
+            aad = b"standard-vault-v2:" + self.salt
+            
+            ciphertext = cipher.encrypt(nonce, data, aad)
+            
+            return {
+                "encryption_type": "AES-256-GCM",
+                "version": "2.0",  # Version bump for AAD support
+                "salt": base64.b64encode(self.salt).decode('utf-8'),
+                "nonce": base64.b64encode(nonce).decode('utf-8'),
+                "ciphertext": base64.b64encode(ciphertext).decode('utf-8'),
+                "kdf": "Argon2id",
+                "memory_cost": self.memory_cost,
+                "time_cost": self.time_cost,
+                "parallelism": self.parallelism
+            }
+        finally:
+            # Securely zero the derived key
+            _secure_zero(key)
     
     def decrypt(self, encrypted_data: Dict[str, Any]) -> bytes:
         """
@@ -76,9 +110,32 @@ class StandardEncryption:
             
         Returns:
             Decrypted data
+            
+        Raises:
+            ValueError: If decryption fails (generic message to prevent information leakage)
         """
-        key = self.derive_key()
-        nonce = base64.b64decode(encrypted_data["nonce"])
-        ciphertext = base64.b64decode(encrypted_data["ciphertext"])
-        cipher = AESGCM(key)
-        return cipher.decrypt(nonce, ciphertext, None) 
+        key = self._derive_key()
+        
+        try:
+            nonce = base64.b64decode(encrypted_data["nonce"])
+            ciphertext = base64.b64decode(encrypted_data["ciphertext"])
+            cipher = AESGCM(bytes(key))
+            
+            # Check version to determine AAD usage
+            version = encrypted_data.get("version", "1.0")
+            if version >= "2.0":
+                # New format with AAD
+                aad = b"standard-vault-v2:" + self.salt
+            else:
+                # Legacy format without AAD
+                aad = None
+            
+            return cipher.decrypt(nonce, ciphertext, aad)
+        except Exception:
+            # Add small delay to prevent timing attacks
+            time.sleep(0.1)
+            # Generic error message - don't leak specific failure reason
+            raise ValueError("Decryption failed: invalid passphrase or corrupted data")
+        finally:
+            # Securely zero the derived key
+            _secure_zero(key)

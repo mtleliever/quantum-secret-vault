@@ -13,7 +13,9 @@ class TestQuantumEncryption:
     def test_initialization(self, sample_passphrase):
         """Test QuantumEncryption initialization."""
         enc = QuantumEncryption(sample_passphrase)
-        assert enc.passphrase == sample_passphrase
+        # Note: passphrase is no longer stored as public attribute for security
+        # It's stored as _passphrase_bytes (bytearray) for secure zeroing
+        assert hasattr(enc, '_passphrase_bytes')
         # Quantum encryption should have default parameters
         assert enc.memory_cost > 0
         assert enc.time_cost > 0

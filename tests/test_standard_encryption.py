@@ -13,7 +13,9 @@ class TestStandardEncryption:
     def test_initialization(self, sample_passphrase):
         """Test StandardEncryption initialization."""
         enc = StandardEncryption(sample_passphrase)
-        assert enc.passphrase == sample_passphrase
+        # Note: passphrase is no longer stored as public attribute for security
+        # It's stored as _passphrase_bytes (bytearray) for secure zeroing
+        assert hasattr(enc, '_passphrase_bytes')
         assert len(enc.salt) == 32
     
     def test_initialization_with_custom_salt(self, sample_passphrase):
@@ -45,11 +47,12 @@ class TestStandardEncryption:
     def test_key_derivation(self, sample_passphrase):
         """Test Argon2id key derivation."""
         enc = StandardEncryption(sample_passphrase)
-        key = enc.derive_key()
+        # Note: derive_key is now private (_derive_key) for security
+        key = enc._derive_key()
         
-        # Key should be 32 bytes (256 bits)
+        # Key should be 32 bytes (256 bits), returned as bytearray for secure zeroing
         assert len(key) == 32
-        assert isinstance(key, bytes)
+        assert isinstance(key, bytearray)
     
     def test_encryption_decryption_roundtrip(self, sample_seed, sample_passphrase):
         """Test complete encryption and decryption cycle."""
@@ -134,10 +137,10 @@ class TestStandardEncryption:
         """Test decryption with invalid data."""
         enc = StandardEncryption(sample_passphrase)
         
-        # Test with missing fields
+        # Test with missing fields - now raises generic ValueError to prevent info leakage
         invalid_data = {"encryption_type": "AES-256-GCM"}
         
-        with pytest.raises(KeyError):
+        with pytest.raises(ValueError, match="Decryption failed"):
             enc.decrypt(invalid_data)
     
     def test_base64_encoding(self, sample_seed, sample_passphrase):
