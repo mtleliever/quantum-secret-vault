@@ -13,10 +13,14 @@ from ..security.quantum_encryption import (
     QuantumEncryption,
 )  # Now enabled with liboqs properly installed
 from ..security.shamir_sharing import ShamirSharing
-from ..security.steganography import Steganography
+
 from .config import SecurityConfig, SecurityLayer
 from .layered_encryption import LayeredEncryption
-from ..utils.file_utils import set_secure_permissions
+from ..utils.file_utils import (
+    set_secure_permissions, 
+    set_secure_directory_permissions,
+    validate_path
+)
 
 
 class QuantumSecretVault:
@@ -31,14 +35,14 @@ class QuantumSecretVault:
         """
         self.config = config
         self.standard_enc = StandardEncryption(
-            config.passphrase,
+            config.password,
             config.salt,
             config.argon2_memory_cost,
             config.argon2_time_cost,
             config.argon2_parallelism,
         )
         self.quantum_enc = QuantumEncryption(
-            passphrase=config.passphrase,
+            password=config.password,
             memory_cost=config.argon2_memory_cost,
             time_cost=config.argon2_time_cost,
             parallelism=config.argon2_parallelism,
@@ -46,15 +50,15 @@ class QuantumSecretVault:
         self.shamir = ShamirSharing(
             config.shamir_threshold, config.shamir_total, config.parity_shares
         )
-        self.stego = Steganography()
 
-    def encrypt_seed(self, seed: str) -> Dict[str, Any]:
+
+    def encrypt_secret(self, secret: str) -> Dict[str, Any]:
         """
-        Encrypt seed using selected security layers in a modular, layered approach.
+        Encrypt secret using selected security layers in a modular, layered approach.
         All layers including Shamir sharing are handled by LayeredEncryption.
 
         Args:
-            seed: Seed string to encrypt
+            secret: Secret string to encrypt
 
         Returns:
             Dictionary with encrypted data/shares and metadata
@@ -62,7 +66,7 @@ class QuantumSecretVault:
         # Apply layered encryption with all configured layers
         if self.config.layers:
             layered_enc = LayeredEncryption(
-                passphrase=self.config.passphrase,
+                password=self.config.password,
                 layers=self.config.layers,
                 memory_cost=self.config.argon2_memory_cost,
                 time_cost=self.config.argon2_time_cost,
@@ -73,41 +77,49 @@ class QuantumSecretVault:
                 salt=self.config.salt,
             )
 
-            # Encrypt the seed through all layers
-            return layered_enc.encrypt(seed.encode("utf-8"))
+            # Encrypt the secret through all layers
+            return layered_enc.encrypt(secret.encode("utf-8"))
         else:
-            # No layers - just encode the seed
+            # No layers - just encode the secret
             return {
                 "layers": [],
-                "ciphertext": base64.b64encode(seed.encode("utf-8")).decode("utf-8"),
+                "ciphertext": base64.b64encode(secret.encode("utf-8")).decode("utf-8"),
             }
 
     def create_vault(
-        self, seed: str, output_dir: str, images: Optional[List[str]] = None
+        self, secret: str, output_dir: str, allowed_base: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Create the complete vault with all selected layers.
 
         Args:
-            seed: Seed string to protect
+            secret: Secret string to protect
             output_dir: Directory to create vault in
-            images: Optional list of image paths for steganography
+            allowed_base: Optional base directory for path validation.
+                         If provided, output_dir must be within this directory.
 
         Returns:
             Dictionary with vault creation information
+            
+        Raises:
+            PathTraversalError: If output_dir would escape allowed_base
+            ValueError: If paths are invalid
         """
-        os.makedirs(output_dir, exist_ok=True)
-        # Set secure permissions on output directory
-        os.chmod(output_dir, 0o700)
+        # Validate and sanitize the output directory path
+        validated_output_dir = validate_path(output_dir, allowed_base)
+        
+        os.makedirs(validated_output_dir, exist_ok=True)
+        # Set secure permissions on output directory (cross-platform)
+        set_secure_directory_permissions(validated_output_dir)
 
         # Create subdirectories based on layers
         if self.config.has_layer(SecurityLayer.SHAMIR_SHARING):
-            os.makedirs(f"{output_dir}/shares", exist_ok=True)
-        if self.config.has_layer(SecurityLayer.STEGANOGRAPHY):
-            os.makedirs(f"{output_dir}/stego_images", exist_ok=True)
+            shares_dir = os.path.join(validated_output_dir, "shares")
+            os.makedirs(shares_dir, exist_ok=True)
+            set_secure_directory_permissions(shares_dir)
 
-        # Encrypt the seed
-        result = self.encrypt_seed(seed)
+        # Encrypt the secret
+        result = self.encrypt_secret(secret)
 
         vault_info = {
             "vault_created": True,
@@ -124,7 +136,7 @@ class QuantumSecretVault:
             # Multiple shares
             shares = result["shares"]
             for i, share in enumerate(shares):
-                share_file = f"{output_dir}/shares/share_{i}.bin"
+                share_file = os.path.join(validated_output_dir, "shares", f"share_{i}.bin")
                 share_data = {
                     "share_id": i,
                     "share_type": "Shamir+Reed-Solomon",
@@ -137,20 +149,13 @@ class QuantumSecretVault:
                 }
                 with open(share_file, "wb") as f:
                     cbor2.dump(share_data, f)
+                set_secure_permissions(share_file)
                 vault_info["files_created"].append(share_file)
 
-                # Add steganography if enabled
-                if (
-                    self.config.has_layer(SecurityLayer.STEGANOGRAPHY)
-                    and images
-                    and i < len(images)
-                ):
-                    stego_file = f"{output_dir}/stego_images/share_{i}.png"
-                    if self.stego.embed_data(share_file, images[i], stego_file):
-                        vault_info["files_created"].append(stego_file)
+
         else:
             # Single encrypted file (CBOR binary)
-            vault_bin_file = f"{output_dir}/vault.bin"
+            vault_bin_file = os.path.join(validated_output_dir, "vault.bin")
             cbor_data = {"layers": result["layers"], "ciphertext": result["ciphertext"]}
 
             # No need to add layer-specific data separately since it's already in layers
@@ -163,32 +168,36 @@ class QuantumSecretVault:
                 vault_info["files_created"].append(vault_bin_file)
             except Exception as e:
                 raise IOError(f"Failed to create vault file: {e}")
-            # Add steganography if enabled
-            if self.config.has_layer(SecurityLayer.STEGANOGRAPHY) and images:
-                stego_file = f"{output_dir}/stego_images/vault.bin.png"
-                if self.stego.embed_data(vault_bin_file, images[0], stego_file):
-                    vault_info["files_created"].append(stego_file)
+
 
         # All configuration is embedded in the vault.bin CBOR file
         return vault_info
 
     @staticmethod
-    def inspect_vault(vault_dir: str) -> Dict[str, Any]:
+    def inspect_vault(vault_dir: str, allowed_base: Optional[str] = None) -> Dict[str, Any]:
         """
         Inspect vault contents and return detailed information about layers and parameters.
         Supports both single vault.bin files and Shamir share files.
         
         Args:
             vault_dir: Directory containing vault.bin or shares/
+            allowed_base: Optional base directory for path validation
             
         Returns:
             Dictionary with comprehensive vault information
+            
+        Raises:
+            PathTraversalError: If vault_dir would escape allowed_base
+            FileNotFoundError: If vault directory doesn't exist
         """
-        if not vault_dir or not os.path.exists(vault_dir):
+        # Validate path to prevent directory traversal attacks
+        validated_vault_dir = validate_path(vault_dir, allowed_base)
+        
+        if not os.path.exists(validated_vault_dir):
             raise FileNotFoundError(f"Vault directory not found: {vault_dir}")
 
-        vault_bin_path = os.path.join(vault_dir, "vault.bin")
-        shares_path = os.path.join(vault_dir, "shares")
+        vault_bin_path = os.path.join(validated_vault_dir, "vault.bin")
+        shares_path = os.path.join(validated_vault_dir, "shares")
         
         cbor_data = None
         vault_type = "unknown"
@@ -313,23 +322,33 @@ class QuantumSecretVault:
         return vault_info
 
     @staticmethod
-    def recover_vault(vault_dir: str, passphrase: str, show_details: bool = False) -> str:
+    def recover_vault(vault_dir: str, password: str, show_details: bool = False,
+                      allowed_base: Optional[str] = None) -> str:
         """
-        Recover the original seed phrase from a vault directory using the provided passphrase.
+        Recover the original secret from a vault directory using the provided password.
         Supports modular layered encryption with standard_encryption, quantum_encryption, and combinations.
         
         Args:
             vault_dir: Directory containing vault.bin
-            passphrase: Passphrase for decryption
+            password: Password for decryption
             show_details: If True, print detailed vault information before recovery
+            allowed_base: Optional base directory for path validation
             
         Returns:
-            Decrypted seed phrase
+            Decrypted secret
+            
+        Raises:
+            PathTraversalError: If vault_dir would escape allowed_base
+            FileNotFoundError: If vault directory doesn't exist
+            ValueError: If decryption fails (generic message to prevent information leakage)
         """
+        # Validate path to prevent directory traversal attacks
+        validated_vault_dir = validate_path(vault_dir, allowed_base)
+        
         if show_details:
             print("=== VAULT INSPECTION ===")
             try:
-                vault_info = QuantumSecretVault.inspect_vault(vault_dir)
+                vault_info = QuantumSecretVault.inspect_vault(validated_vault_dir)
                 print(f"Vault type: {vault_info['vault_type']}")
                 print(f"Total layers: {vault_info['total_layers']}")
                 
@@ -359,21 +378,21 @@ class QuantumSecretVault:
             print("=== STARTING RECOVERY ===")
             print()
 
-        if not vault_dir or not os.path.exists(vault_dir):
+        if not os.path.exists(validated_vault_dir):
             raise FileNotFoundError(f"Vault directory not found: {vault_dir}")
 
-        vault_bin_path = os.path.join(vault_dir, "vault.bin")
-        shares_path = os.path.join(vault_dir, "shares")
+        vault_bin_path = os.path.join(validated_vault_dir, "vault.bin")
+        shares_path = os.path.join(validated_vault_dir, "shares")
         
         # Auto-detect vault type
         if os.path.exists(vault_bin_path):
             # Standard vault with vault.bin file - continue with existing logic
             pass
-        elif os.path.exists(shares_path) or any(f.startswith("share_") and f.endswith(".bin") for f in os.listdir(vault_dir)):
+        elif os.path.exists(shares_path) or any(f.startswith("share_") and f.endswith(".bin") for f in os.listdir(validated_vault_dir)):
             # Shamir shares vault - load shares and reconstruct vault data
-            return QuantumSecretVault._recover_from_shares(vault_dir, passphrase, show_details=show_details)
+            return QuantumSecretVault._recover_from_shares(validated_vault_dir, password, show_details=show_details)
         else:
-            raise FileNotFoundError(f"No vault.bin or share files found in {vault_dir}")
+            raise FileNotFoundError(f"No vault.bin or share files found in {validated_vault_dir}")
 
         try:
             with open(vault_bin_path, "rb") as f:
@@ -394,7 +413,7 @@ class QuantumSecretVault:
             if "layers" in cbor_data and ("ciphertext" in cbor_data):
                 # New layered encryption format
                 layered_enc = LayeredEncryption.create_from_vault_data(
-                    cbor_data, passphrase
+                    cbor_data, password
                 )
                 decrypted_data = layered_enc.decrypt(cbor_data)
                 return decrypted_data.decode()
@@ -415,7 +434,7 @@ class QuantumSecretVault:
                     parallelism = int(enc.get("parallelism", 1))
 
                     se = StandardEncryption(
-                        passphrase,
+                        password,
                         salt=salt,
                         memory_cost=memory_cost,
                         time_cost=time_cost,
@@ -435,7 +454,7 @@ class QuantumSecretVault:
 
                     # Initialize quantum encryption
                     qe = QuantumEncryption(
-                        passphrase=passphrase,
+                        password=password,
                         memory_cost=memory_cost,
                         time_cost=time_cost,
                         parallelism=parallelism,
@@ -457,21 +476,25 @@ class QuantumSecretVault:
                     f"Please use the new layered encryption format."
                 )
                 
-        except Exception as e:
-            raise ValueError(f"Decryption failed: {e}")
+        except (NotImplementedError, FileNotFoundError):
+            # Re-raise these specific exceptions as-is
+            raise
+        except Exception:
+            # Generic error message to prevent information leakage
+            raise ValueError("Decryption failed: invalid password or corrupted data")
 
     @staticmethod
-    def _recover_from_shares(vault_dir: str, passphrase: str, show_details: bool = False) -> str:
+    def _recover_from_shares(vault_dir: str, password: str, show_details: bool = False) -> str:
         """
         Recover from Shamir share files using integrated LayeredEncryption.
         
         Args:
             vault_dir: Directory containing share files
-            passphrase: Passphrase for decryption
+            password: Password for decryption
             show_details: If True, print detailed recovery information
             
         Returns:
-            Decrypted seed phrase
+            Decrypted secret
         """
         # Find share files
         shares_path = os.path.join(vault_dir, "shares")
@@ -533,10 +556,13 @@ class QuantumSecretVault:
         
         # Use LayeredEncryption to decrypt (handles Shamir reconstruction internally)
         if layer_info:
-            layered_enc = LayeredEncryption.create_from_vault_data(vault_data, passphrase)
-            decrypted_data = layered_enc.decrypt(vault_data)
-            return decrypted_data.decode()
+            try:
+                layered_enc = LayeredEncryption.create_from_vault_data(vault_data, password)
+                decrypted_data = layered_enc.decrypt(vault_data)
+                return decrypted_data.decode()
+            except Exception:
+                # Generic error message to prevent information leakage
+                raise ValueError("Decryption failed: invalid password or corrupted data")
         else:
             # No encryption layers - shouldn't happen with Shamir but handle gracefully
             raise ValueError("No encryption layers found in share data")
-

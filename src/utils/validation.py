@@ -5,63 +5,54 @@ Validation utilities for the quantum secret vault.
 import re
 from typing import List
 
-def validate_seed_phrase(seed: str) -> bool:
+def validate_secret(secret: str) -> bool:
     """
-    Validate BIP-39 seed phrase format.
+    Validate secret text format.
     
     Args:
-        seed: Seed phrase to validate
+        secret: Secret text to validate
         
     Returns:
         True if valid, False otherwise
     """
-    if not seed or not isinstance(seed, str):
+    if not secret or not isinstance(secret, str):
         return False
     
-    # Split into words
-    words = seed.strip().split()
-    
-    # Check word count (BIP-39 supports 12, 15, 18, 21, 24 words)
-    valid_lengths = [12, 15, 18, 21, 24]
-    if len(words) not in valid_lengths:
+    # Secret should be non-empty
+    if len(secret.strip()) == 0:
         return False
-    
-    # Check each word is alphabetic and lowercase
-    for word in words:
-        if not word.isalpha() or not word.islower():
-            return False
     
     return True
 
-def validate_passphrase(passphrase: str) -> bool:
+def validate_password(password: str) -> bool:
     """
-    Validate BIP-39 passphrase format.
+    Validate password format.
     
     Args:
-        passphrase: Passphrase to validate
+        password: Password to validate
         
     Returns:
         True if valid, False otherwise
     """
-    if not passphrase or not isinstance(passphrase, str):
+    if not password or not isinstance(password, str):
         return False
     
-    # Passphrase should be reasonable length
-    if len(passphrase) < 1 or len(passphrase) > 100:
+    # Password should be reasonable length
+    if len(password) < 1 or len(password) > 100:
         return False
     
     return True
 
-def get_seed_word_count(seed: str) -> int:
+def get_secret_length(secret: str) -> int:
     """
-    Get the number of words in a seed phrase.
+    Get the length of a secret.
     
     Args:
-        seed: Seed phrase
+        secret: Secret text
         
     Returns:
-        Number of words
+        Length of secret
     """
-    if not seed:
+    if not secret:
         return 0
-    return len(seed.strip().split()) 
+    return len(secret.strip())

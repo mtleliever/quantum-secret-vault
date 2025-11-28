@@ -31,24 +31,38 @@ class ShamirSharing:
     maintaining the k-of-n threshold property.
     """
     
-    def __init__(self, threshold: int, total: int, parity: int = 2):
+    def __init__(self, threshold: int, total: int, parity: int = 20):
         """
         Initialize Shamir sharing.
         
         Args:
-            threshold: Minimum number of shares needed to recover
-            total: Total number of shares to create
-            parity: Number of Reed-Solomon parity shares
+            threshold: Minimum number of shares needed to recover (must be >= 2)
+            total: Total number of shares to create (must be >= threshold)
+            parity: Number of Reed-Solomon parity symbols per share (default: 20,
+                   which corrects up to 10 byte errors - suitable for long-term storage)
+            
+        Raises:
+            ValueError: If parameters are invalid
+            
+        Security Note:
+            Threshold must be at least 2. With threshold=1, all shares would
+            contain the complete secret, defeating the purpose of secret sharing.
         """
-        # Validate parameters
+        # Validate parameters with security-focused checks
+        if threshold < 2:
+            raise ValueError(
+                f"Threshold ({threshold}) must be at least 2. "
+                "With threshold=1, shares would contain the complete secret, "
+                "defeating the purpose of secret sharing."
+            )
+        if total < 2:
+            raise ValueError(f"Total ({total}) must be at least 2")
         if threshold > total:
             raise ValueError(f"Threshold ({threshold}) cannot be greater than total ({total})")
-        if threshold < 1:
-            raise ValueError(f"Threshold ({threshold}) must be at least 1")
-        if total < 1:
-            raise ValueError(f"Total ({total}) must be at least 1")
         if parity < 0:
             raise ValueError(f"Parity ({parity}) cannot be negative")
+        if parity > 255:
+            raise ValueError(f"Parity ({parity}) cannot exceed 255 (Reed-Solomon limit)")
         
         self.threshold = threshold
         self.total = total
@@ -64,23 +78,8 @@ class ShamirSharing:
         Returns:
             List of Reed-Solomon encoded share bytes (exactly 'total' shares)
         """
-        # Handle edge case: threshold=1 (pyseltongue requires >= 2)
-        if self.threshold == 1:
-            # For threshold=1, just return the secret as shares with Reed-Solomon if enabled
-            shares = [secret] * self.total
-            share_bytes = [s.encode('utf-8') for s in shares]
-            
-            # Apply Reed-Solomon to each share if parity > 0
-            if self.parity > 0:
-                rsc = RSCodec(self.parity)
-                rs_encoded_shares = []
-                for share_data in share_bytes:
-                    share_ints = list(share_data)
-                    encoded_ints = rsc.encode(share_ints)
-                    rs_encoded_shares.append(bytes(encoded_ints))
-                return rs_encoded_shares
-            else:
-                return share_bytes
+        if not secret:
+            raise ValueError("Secret cannot be empty")
         
         # Convert secret to numeric string that pyseltongue can handle
         secret_bytes = secret.encode('utf-8')
@@ -181,11 +180,6 @@ class ShamirSharing:
         else:
             # No Reed-Solomon, use shares directly
             share_strings = [share.decode('utf-8') for share in shares[:self.threshold]]
-        
-        # Handle edge case: threshold=1
-        if self.threshold == 1:
-            # For threshold=1, shares are just the original secret
-            return share_strings[0]
         
         # Step 2: Apply Shamir secret reconstruction
         

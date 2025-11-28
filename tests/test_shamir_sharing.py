@@ -13,7 +13,7 @@ class TestShamirSharing:
     
     def test_basic_split_and_recovery(self):
         """Test basic secret splitting and recovery."""
-        secret = "test secret phrase for basic functionality"
+        secret = "test secret text for basic functionality"
         threshold = 3
         total = 5
         
@@ -117,9 +117,9 @@ class TestShamirSharing:
     
     def test_long_secret(self):
         """Test with a long secret string."""
-        # Create a long secret (similar to a 24-word seed phrase)
+        # Create a long secret
         words = ["word"] * 24
-        secret = " ".join(words) + " " + "passphrase"
+        secret = " ".join(words) + " " + "extra_text"
         
         threshold = 5
         total = 7
@@ -130,8 +130,8 @@ class TestShamirSharing:
         recovered = shamir.recover_secret(shares[:threshold])
         assert recovered == secret
     
-    def test_seed_phrase_like_secret(self):
-        """Test with a realistic seed phrase."""
+    def test_realistic_secret(self):
+        """Test with a realistic secret text."""
         secret = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
         
         threshold = 3
@@ -170,17 +170,17 @@ class TestShamirSharing:
         assert recovered == secret
     
     def test_empty_secret(self):
-        """Test with empty secret."""
+        """Test with empty secret - should raise ValueError for security."""
         secret = ""
         
         threshold = 2
         total = 3
         
         shamir = ShamirSharing(threshold, total)
-        shares = shamir.split_secret(secret)
         
-        recovered = shamir.recover_secret(shares[:threshold])
-        assert recovered == secret
+        # Empty secrets are now rejected for security reasons
+        with pytest.raises(ValueError, match="Secret cannot be empty"):
+            shamir.split_secret(secret)
     
     def test_single_character_secret(self):
         """Test with single character secret."""
@@ -268,11 +268,10 @@ class TestShamirSharing:
         recovered = shamir.recover_secret(shares[:2])
         assert recovered == secret
         
-        # Test 1-of-1 (should work but not useful)
-        shamir = ShamirSharing(1, 1)
-        shares = shamir.split_secret(secret)
-        recovered = shamir.recover_secret(shares[:1])
-        assert recovered == secret
+        # Test 1-of-1 is now rejected for security (threshold must be >= 2)
+        # With threshold=1, shares would contain the complete secret
+        with pytest.raises(ValueError, match="Threshold .* must be at least 2"):
+            ShamirSharing(1, 1)
     
     def test_large_threshold_values(self):
         """Test with larger threshold values."""
@@ -371,10 +370,10 @@ class TestShamirSharing:
             try:
                 recovered = shamir.recover_secret(corrupted_shares[:threshold])
                 assert recovered == secret
-                print("✅ Single-byte corruption corrected successfully")
+                print("OK: Single-byte corruption corrected successfully")
             except Exception as e:
                 # If correction fails, that's still acceptable for some corruption patterns
-                print(f"⚠️  Single-byte correction failed: {e}")
+                print(f"Warning: Single-byte correction failed: {e}")
         
         # Test 3: Verify exact share count
         assert len(shares) == total  # Should be exactly 5 shares, not 7
@@ -385,4 +384,4 @@ class TestShamirSharing:
             recovered = shamir.recover_secret(subset)
             assert recovered == secret
         
-        print("✅ All Reed-Solomon integration tests passed") 
+        print("OK: All Reed-Solomon integration tests passed")

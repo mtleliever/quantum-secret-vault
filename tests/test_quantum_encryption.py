@@ -10,22 +10,24 @@ from src.security.quantum_encryption import QuantumEncryption
 class TestQuantumEncryption:
     """Test suite for QuantumEncryption class."""
     
-    def test_initialization(self, sample_passphrase):
+    def test_initialization(self, sample_password):
         """Test QuantumEncryption initialization."""
-        enc = QuantumEncryption(sample_passphrase)
-        assert enc.passphrase == sample_passphrase
+        enc = QuantumEncryption(sample_password)
+        # Note: password is no longer stored as public attribute for security
+        # It's stored as _password_bytes (bytearray) for secure zeroing
+        assert hasattr(enc, '_password_bytes')
         # Quantum encryption should have default parameters
         assert enc.memory_cost > 0
         assert enc.time_cost > 0
         assert enc.parallelism > 0
     
-    def test_initialization_with_custom_argon2_params(self, sample_passphrase):
+    def test_initialization_with_custom_argon2_params(self, sample_password):
         """Test QuantumEncryption initialization with custom Argon2 parameters."""
         memory_cost = 1048576  # 1 GiB
         time_cost = 3
         parallelism = 1
         enc = QuantumEncryption(
-            passphrase=sample_passphrase,
+            password=sample_password,
             memory_cost=memory_cost,
             time_cost=time_cost,
             parallelism=parallelism
@@ -59,10 +61,10 @@ class TestQuantumEncryption:
         except Exception as e:
             pytest.fail(f"liboqs error: {e}")
     
-    def test_encryption_decryption_roundtrip(self, sample_seed, sample_passphrase):
+    def test_encryption_decryption_roundtrip(self, sample_secret, sample_password):
         """Test complete quantum encryption and decryption cycle."""
-        enc = QuantumEncryption(sample_passphrase)
-        data = sample_seed.encode('utf-8')
+        enc = QuantumEncryption(sample_password)
+        data = sample_secret.encode('utf-8')
         
         # Encrypt
         encrypted = enc.encrypt(data)
@@ -85,11 +87,11 @@ class TestQuantumEncryption:
         
         # Verify data integrity
         assert decrypted == data
-        assert decrypted.decode('utf-8') == sample_seed
+        assert decrypted.decode('utf-8') == sample_secret
     
-    def test_encryption_with_different_data_sizes(self, sample_passphrase):
+    def test_encryption_with_different_data_sizes(self, sample_password):
         """Test quantum encryption with various data sizes."""
-        enc = QuantumEncryption(sample_passphrase)
+        enc = QuantumEncryption(sample_password)
         
         test_cases = [
             b"short",
@@ -105,10 +107,10 @@ class TestQuantumEncryption:
             decrypted = enc.decrypt(encrypted)
             assert decrypted == data, f"Failed for data of length {len(data)}"
     
-    def test_encryption_uniqueness(self, sample_seed, sample_passphrase):
+    def test_encryption_uniqueness(self, sample_secret, sample_password):
         """Test that each quantum encryption produces unique ciphertext."""
-        enc = QuantumEncryption(sample_passphrase)
-        data = sample_seed.encode('utf-8')
+        enc = QuantumEncryption(sample_password)
+        data = sample_secret.encode('utf-8')
         
         # Encrypt same data multiple times
         encrypted1 = enc.encrypt(data)
@@ -124,10 +126,10 @@ class TestQuantumEncryption:
         decrypted2 = enc.decrypt(encrypted2)
         assert decrypted1 == decrypted2 == data
     
-    def test_key_commitment_security(self, sample_seed, sample_passphrase):
+    def test_key_commitment_security(self, sample_secret, sample_password):
         """Test that key commitment prevents tampering."""
-        enc = QuantumEncryption(sample_passphrase)
-        data = sample_seed.encode('utf-8')
+        enc = QuantumEncryption(sample_password)
+        data = sample_secret.encode('utf-8')
         
         encrypted = enc.encrypt(data)
         
@@ -144,31 +146,31 @@ class TestQuantumEncryption:
         decrypted = enc.decrypt(encrypted)
         assert decrypted == data
     
-    def test_passphrase_sensitivity(self, sample_seed):
-        """Test that different passphrases produce different results."""
-        passphrase1 = "correct_passphrase"
-        passphrase2 = "wrong_passphrase"
+    def test_password_sensitivity(self, sample_secret):
+        """Test that different passwords produce different results."""
+        password1 = "correct_password"
+        password2 = "wrong_password"
         
-        enc1 = QuantumEncryption(passphrase1)
-        enc2 = QuantumEncryption(passphrase2)
+        enc1 = QuantumEncryption(password1)
+        enc2 = QuantumEncryption(password2)
         
-        data = sample_seed.encode('utf-8')
+        data = sample_secret.encode('utf-8')
         
-        # Encrypt with first passphrase
+        # Encrypt with first password
         encrypted = enc1.encrypt(data)
         
-        # Try to decrypt with wrong passphrase - should fail
+        # Try to decrypt with wrong password - should fail
         with pytest.raises(Exception):
             enc2.decrypt(encrypted)
         
-        # Decrypt with correct passphrase - should work
+        # Decrypt with correct password - should work
         decrypted = enc1.decrypt(encrypted)
         assert decrypted == data
     
-    def test_base64_encoding(self, sample_seed, sample_passphrase):
+    def test_base64_encoding(self, sample_secret, sample_password):
         """Test that quantum encrypted data is properly base64 encoded."""
-        enc = QuantumEncryption(sample_passphrase)
-        data = sample_seed.encode('utf-8')
+        enc = QuantumEncryption(sample_password)
+        data = sample_secret.encode('utf-8')
         
         encrypted = enc.encrypt(data)
         
@@ -185,10 +187,10 @@ class TestQuantumEncryption:
             except Exception as e:
                 pytest.fail(f"Invalid base64 encoding for {field}: {e}")
     
-    def test_json_serialization(self, sample_seed, sample_passphrase):
+    def test_json_serialization(self, sample_secret, sample_password):
         """Test that quantum encrypted data can be serialized to JSON."""
-        enc = QuantumEncryption(sample_passphrase)
-        data = sample_seed.encode('utf-8')
+        enc = QuantumEncryption(sample_password)
+        data = sample_secret.encode('utf-8')
         
         encrypted = enc.encrypt(data)
         
@@ -200,9 +202,9 @@ class TestQuantumEncryption:
         decrypted = enc.decrypt(parsed)
         assert decrypted == data
     
-    def test_crypto_primitive_security(self, sample_passphrase):
+    def test_crypto_primitive_security(self, sample_password):
         """Test that quantum encryption uses secure cryptographic primitives."""
-        enc = QuantumEncryption(sample_passphrase)
+        enc = QuantumEncryption(sample_password)
         data = b"security test data"
         
         encrypted = enc.encrypt(data)
@@ -223,12 +225,12 @@ class TestQuantumEncryption:
         aes_nonce = base64.b64decode(encrypted["aes_nonce"])
         assert len(aes_nonce) == 12, "AES-GCM nonce should be 12 bytes"
     
-    def test_performance_timing(self, sample_seed, sample_passphrase):
+    def test_performance_timing(self, sample_secret, sample_password):
         """Test that quantum encryption completes in reasonable time."""
         import time
         
-        enc = QuantumEncryption(sample_passphrase)
-        data = sample_seed.encode('utf-8')
+        enc = QuantumEncryption(sample_password)
+        data = sample_secret.encode('utf-8')
         
         # Encryption should complete in under 10 seconds even on slow systems
         start_time = time.time()
@@ -245,11 +247,11 @@ class TestQuantumEncryption:
         assert decrypt_time < 5.0, f"Decryption took too long: {decrypt_time:.2f}s"
         assert decrypted == data
     
-    def test_invalid_decryption_data(self, sample_passphrase):
+    def test_invalid_decryption_data(self, sample_password):
         """Test quantum decryption with invalid data."""
-        enc = QuantumEncryption(sample_passphrase)
+        enc = QuantumEncryption(sample_password)
         
-        # Test with missing fields
+        # Test with missing fields - raises KeyError when accessing required fields
         invalid_data = {"encryption_type": "Kyber1024"}
         
         with pytest.raises(KeyError):
@@ -264,4 +266,4 @@ class TestQuantumEncryption:
         encrypted["aes_ciphertext"] = "corrupted_base64_data"
         
         with pytest.raises(Exception):
-            enc.decrypt(encrypted) 
+            enc.decrypt(encrypted)

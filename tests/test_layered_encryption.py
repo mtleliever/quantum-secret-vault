@@ -13,11 +13,11 @@ from src.core.config import SecurityConfig, SecurityLayer
 class TestLayeredEncryption:
     """Test suite for layered encryption functionality."""
     
-    def test_single_standard_encryption_layer(self, sample_seed, sample_passphrase):
+    def test_single_standard_encryption_layer(self, sample_secret, sample_password):
         """Test single layer of standard encryption."""
         config = SecurityConfig(
             layers=[SecurityLayer.STANDARD_ENCRYPTION],
-            passphrase=sample_passphrase,
+            password=sample_password,
             salt=os.urandom(32),
             argon2_memory_cost=65536,  # 64 MiB for faster tests
             argon2_time_cost=2,
@@ -29,23 +29,23 @@ class TestLayeredEncryption:
         # Create temporary directory
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create vault
-            result = vault.create_vault(sample_seed, temp_dir)
+            result = vault.create_vault(sample_secret, temp_dir)
             
             # Verify creation
             assert result["vault_created"] is True
             assert "standard_encryption" in result["layers"]
             
             # Recover vault
-            recovered_seed = QuantumSecretVault.recover_vault(temp_dir, sample_passphrase)
+            recovered_secret = QuantumSecretVault.recover_vault(temp_dir, sample_password)
             
             # Verify recovery
-            assert recovered_seed == sample_seed
+            assert recovered_secret == sample_secret
     
-    def test_single_quantum_encryption_layer(self, sample_seed, sample_passphrase):
+    def test_single_quantum_encryption_layer(self, sample_secret, sample_password):
         """Test single layer of quantum encryption."""
         config = SecurityConfig(
             layers=[SecurityLayer.QUANTUM_ENCRYPTION],
-            passphrase=sample_passphrase,
+            password=sample_password,
             salt=os.urandom(32),
             argon2_memory_cost=65536,  # 64 MiB for faster tests
             argon2_time_cost=2,
@@ -57,23 +57,23 @@ class TestLayeredEncryption:
         # Create temporary directory
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create vault
-            result = vault.create_vault(sample_seed, temp_dir)
+            result = vault.create_vault(sample_secret, temp_dir)
             
             # Verify creation
             assert result["vault_created"] is True
             assert "quantum_encryption" in result["layers"]
             
             # Recover vault
-            recovered_seed = QuantumSecretVault.recover_vault(temp_dir, sample_passphrase)
+            recovered_secret = QuantumSecretVault.recover_vault(temp_dir, sample_password)
             
             # Verify recovery
-            assert recovered_seed == sample_seed
+            assert recovered_secret == sample_secret
     
-    def test_dual_layer_standard_then_quantum(self, sample_seed, sample_passphrase):
+    def test_dual_layer_standard_then_quantum(self, sample_secret, sample_password):
         """Test dual layer: standard encryption followed by quantum encryption."""
         config = SecurityConfig(
             layers=[SecurityLayer.STANDARD_ENCRYPTION, SecurityLayer.QUANTUM_ENCRYPTION],
-            passphrase=sample_passphrase,
+            password=sample_password,
             salt=os.urandom(32),
             argon2_memory_cost=65536,  # 64 MiB for faster tests
             argon2_time_cost=2,
@@ -85,7 +85,7 @@ class TestLayeredEncryption:
         # Create temporary directory
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create vault
-            result = vault.create_vault(sample_seed, temp_dir)
+            result = vault.create_vault(sample_secret, temp_dir)
             
             # Verify creation
             assert result["vault_created"] is True
@@ -100,16 +100,16 @@ class TestLayeredEncryption:
             assert result["layer_results"][1]["layer"] == "quantum_encryption"
             
             # Recover vault
-            recovered_seed = QuantumSecretVault.recover_vault(temp_dir, sample_passphrase)
+            recovered_secret = QuantumSecretVault.recover_vault(temp_dir, sample_password)
             
             # Verify recovery
-            assert recovered_seed == sample_seed
+            assert recovered_secret == sample_secret
     
-    def test_dual_layer_quantum_then_standard(self, sample_seed, sample_passphrase):
+    def test_dual_layer_quantum_then_standard(self, sample_secret, sample_password):
         """Test dual layer: quantum encryption followed by standard encryption."""
         config = SecurityConfig(
             layers=[SecurityLayer.QUANTUM_ENCRYPTION, SecurityLayer.STANDARD_ENCRYPTION],
-            passphrase=sample_passphrase,
+            password=sample_password,
             salt=os.urandom(32),
             argon2_memory_cost=65536,  # 64 MiB for faster tests
             argon2_time_cost=2,
@@ -121,7 +121,7 @@ class TestLayeredEncryption:
         # Create temporary directory
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create vault
-            result = vault.create_vault(sample_seed, temp_dir)
+            result = vault.create_vault(sample_secret, temp_dir)
             
             # Verify creation
             assert result["vault_created"] is True
@@ -136,16 +136,16 @@ class TestLayeredEncryption:
             assert result["layer_results"][1]["layer"] == "standard_encryption"
             
             # Recover vault
-            recovered_seed = QuantumSecretVault.recover_vault(temp_dir, sample_passphrase)
+            recovered_secret = QuantumSecretVault.recover_vault(temp_dir, sample_password)
             
             # Verify recovery
-            assert recovered_seed == sample_seed
+            assert recovered_secret == sample_secret
     
-    def test_encryption_info_preservation(self, sample_seed, sample_passphrase):
+    def test_encryption_info_preservation(self, sample_secret, sample_password):
         """Test that encryption info is preserved for all layers."""
         config = SecurityConfig(
             layers=[SecurityLayer.STANDARD_ENCRYPTION, SecurityLayer.QUANTUM_ENCRYPTION],
-            passphrase=sample_passphrase,
+            password=sample_password,
             salt=os.urandom(32),
             argon2_memory_cost=131072,  # 128 MiB
             argon2_time_cost=3,
@@ -157,7 +157,7 @@ class TestLayeredEncryption:
         # Create temporary directory
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create vault
-            result = vault.create_vault(sample_seed, temp_dir)
+            result = vault.create_vault(sample_secret, temp_dir)
             
             # Verify encryption info is preserved in layer_results
             assert "layer_results" in result
@@ -180,14 +180,14 @@ class TestLayeredEncryption:
             assert qe_metadata["kdf"] == "Argon2id"
             
             # Recover vault
-            recovered_seed = QuantumSecretVault.recover_vault(temp_dir, sample_passphrase)
-            assert recovered_seed == sample_seed
+            recovered_secret = QuantumSecretVault.recover_vault(temp_dir, sample_password)
+            assert recovered_secret == sample_secret
     
-    def test_wrong_passphrase_fails(self, sample_seed, sample_passphrase):
-        """Test that wrong passphrase fails for layered encryption."""
+    def test_wrong_password_fails(self, sample_secret, sample_password):
+        """Test that wrong password fails for layered encryption."""
         config = SecurityConfig(
             layers=[SecurityLayer.STANDARD_ENCRYPTION, SecurityLayer.QUANTUM_ENCRYPTION],
-            passphrase=sample_passphrase,
+            password=sample_password,
             salt=os.urandom(32),
             argon2_memory_cost=65536,  # 64 MiB for faster tests
             argon2_time_cost=2,
@@ -199,17 +199,17 @@ class TestLayeredEncryption:
         # Create temporary directory
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create vault
-            vault.create_vault(sample_seed, temp_dir)
+            vault.create_vault(sample_secret, temp_dir)
             
-            # Try to recover with wrong passphrase
+            # Try to recover with wrong password
             with pytest.raises(ValueError):
-                QuantumSecretVault.recover_vault(temp_dir, "wrong_passphrase")
+                QuantumSecretVault.recover_vault(temp_dir, "wrong_password")
     
-    def test_no_encryption_layers(self, sample_seed, sample_passphrase):
+    def test_no_encryption_layers(self, sample_secret, sample_password):
         """Test handling of no encryption layers."""
         config = SecurityConfig(
             layers=[],  # No layers
-            passphrase=sample_passphrase,
+            password=sample_password,
             salt=os.urandom(32),
         )
         
@@ -218,14 +218,14 @@ class TestLayeredEncryption:
         # Create temporary directory
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create vault
-            result = vault.create_vault(sample_seed, temp_dir)
+            result = vault.create_vault(sample_secret, temp_dir)
             
             # Verify creation
             assert result["vault_created"] is True
             assert result["layers"] == []
             
             # Recover vault
-            recovered_seed = QuantumSecretVault.recover_vault(temp_dir, sample_passphrase)
+            recovered_secret = QuantumSecretVault.recover_vault(temp_dir, sample_password)
             
             # Verify recovery
-            assert recovered_seed == sample_seed 
+            assert recovered_secret == sample_secret

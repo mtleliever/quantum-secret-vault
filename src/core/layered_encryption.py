@@ -5,13 +5,18 @@ This module provides a flexible, modular approach for applying multiple encrypti
 layers to data, allowing for combinations like standard + quantum encryption + Shamir sharing.
 """
 
-import json
 import base64
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional
 from .config import SecurityLayer
 from ..security.standard_encryption import StandardEncryption
 from ..security.quantum_encryption import QuantumEncryption
 from ..security.shamir_sharing import ShamirSharing
+
+
+def _secure_zero(data: bytearray) -> None:
+    """Securely zero out a bytearray."""
+    for i in range(len(data)):
+        data[i] = 0
 
 
 class LayeredEncryption:
@@ -20,17 +25,19 @@ class LayeredEncryption:
     
     This class provides a modular approach where data flows through multiple
     encryption layers in sequence, with each layer wrapping the previous one.
+    
+    Security: Password is stored as bytearray for secure zeroing.
     """
     
-    def __init__(self, passphrase: str, layers: List[SecurityLayer], 
+    def __init__(self, password: str, layers: List[SecurityLayer], 
                  memory_cost: int = 524288, time_cost: int = 5, parallelism: int = 1,
-                 shamir_threshold: int = 3, shamir_total: int = 5, parity_shares: int = 2,
+                 shamir_threshold: int = 3, shamir_total: int = 5, parity_shares: int = 20,
                  salt: Optional[bytes] = None):
         """
         Initialize the layered encryption system.
         
         Args:
-            passphrase: The passphrase to use for encryption
+            password: The password to use for encryption
             layers: List of security layers to apply in order
             memory_cost: Argon2 memory cost in KiB
             time_cost: Argon2 time cost
@@ -39,7 +46,9 @@ class LayeredEncryption:
             shamir_total: Total number of Shamir shares to create
             parity_shares: Number of Reed-Solomon parity shares
         """
-        self.passphrase = passphrase
+        # Store password as bytearray for secure zeroing later
+        self._password_bytes = bytearray(password.encode('utf-8'))
+        self._password = password  # Keep string for passing to encryption classes
         self.layers = layers
         self.memory_cost = memory_cost
         self.time_cost = time_cost
@@ -50,7 +59,7 @@ class LayeredEncryption:
         
         # Initialize encryption instances
         self.standard_enc = StandardEncryption(
-            passphrase,
+            password,
             salt=salt,
             memory_cost=memory_cost,
             time_cost=time_cost,
@@ -58,7 +67,7 @@ class LayeredEncryption:
         )
         
         self.quantum_enc = QuantumEncryption(
-            passphrase=passphrase,
+            password=password,
             memory_cost=memory_cost,
             time_cost=time_cost,
             parallelism=parallelism
@@ -69,6 +78,11 @@ class LayeredEncryption:
             total=shamir_total,
             parity=parity_shares
         )
+    
+    def __del__(self):
+        """Securely zero password bytes on destruction."""
+        if hasattr(self, '_password_bytes'):
+            _secure_zero(self._password_bytes)
     
     def encrypt(self, data: bytes) -> Dict[str, Any]:
         """
@@ -89,18 +103,24 @@ class LayeredEncryption:
                 # Apply standard encryption to current data
                 encrypted = self.standard_enc.encrypt(current_data)
                 
-                # Store only the metadata (not the ciphertext)
+                # Store metadata including version
+                metadata = {
+                    "salt": encrypted["salt"],
+                    "nonce": encrypted["nonce"],
+                    "kdf": encrypted["kdf"],
+                    "memory_cost": encrypted["memory_cost"],
+                    "time_cost": encrypted["time_cost"],
+                    "parallelism": encrypted["parallelism"],
+                    "encryption_type": encrypted["encryption_type"]
+                }
+                
+                # Include version if present
+                if "version" in encrypted:
+                    metadata["version"] = encrypted["version"]
+                
                 layer_results.append({
                     "layer": "standard_encryption",
-                    "metadata": {
-                        "salt": encrypted["salt"],
-                        "nonce": encrypted["nonce"],
-                        "kdf": encrypted["kdf"],
-                        "memory_cost": encrypted["memory_cost"],
-                        "time_cost": encrypted["time_cost"],
-                        "parallelism": encrypted["parallelism"],
-                        "encryption_type": encrypted["encryption_type"]
-                    }
+                    "metadata": metadata
                 })
                 
                 # The result becomes input for next layer
@@ -110,23 +130,31 @@ class LayeredEncryption:
                 # Apply quantum encryption to current data
                 encrypted = self.quantum_enc.encrypt(current_data)
                 
-                # Store only the metadata (not the ciphertext)
+                # Store metadata including new fields
+                metadata = {
+                    "kdf": encrypted["kdf"],
+                    "memory_cost": encrypted["memory_cost"],
+                    "time_cost": encrypted["time_cost"],
+                    "parallelism": encrypted["parallelism"],
+                    "encryption_type": encrypted["encryption_type"],
+                    "kyber_public_key": encrypted["kyber_public_key"],
+                    "kyber_ciphertext": encrypted["kyber_ciphertext"],
+                    "encrypted_private_key": encrypted["encrypted_private_key"],
+                    "secret_key_nonce": encrypted["secret_key_nonce"],
+                    "salt": encrypted["salt"],
+                    "key_commitment": encrypted["key_commitment"],
+                    "aes_nonce": encrypted["aes_nonce"]
+                }
+                
+                # Include new security fields if present
+                if "hkdf_salt" in encrypted:
+                    metadata["hkdf_salt"] = encrypted["hkdf_salt"]
+                if "version" in encrypted:
+                    metadata["version"] = encrypted["version"]
+                
                 layer_results.append({
                     "layer": "quantum_encryption",
-                    "metadata": {
-                        "kdf": encrypted["kdf"],
-                        "memory_cost": encrypted["memory_cost"],
-                        "time_cost": encrypted["time_cost"],
-                        "parallelism": encrypted["parallelism"],
-                        "encryption_type": encrypted["encryption_type"],
-                        "kyber_public_key": encrypted["kyber_public_key"],
-                        "kyber_ciphertext": encrypted["kyber_ciphertext"],
-                        "encrypted_private_key": encrypted["encrypted_private_key"],
-                        "secret_key_nonce": encrypted["secret_key_nonce"],
-                        "salt": encrypted["salt"],
-                        "key_commitment": encrypted["key_commitment"],
-                        "aes_nonce": encrypted["aes_nonce"]
-                    }
+                    "metadata": metadata
                 })
                 
                 # The result becomes input for next layer
@@ -243,6 +271,12 @@ class LayeredEncryption:
                     "aes_ciphertext": base64.b64encode(current_data).decode("utf-8")
                 }
                 
+                # Include new security fields if present
+                if "hkdf_salt" in layer_metadata:
+                    quantum_data["hkdf_salt"] = layer_metadata["hkdf_salt"]
+                if "version" in layer_metadata:
+                    quantum_data["version"] = layer_metadata["version"]
+                
                 # Decrypt using quantum encryption
                 decrypted = self.quantum_enc.decrypt(quantum_data)
                 current_data = decrypted
@@ -260,6 +294,10 @@ class LayeredEncryption:
                     "ciphertext": base64.b64encode(current_data).decode("utf-8")
                 }
                 
+                # Include version if present
+                if "version" in layer_metadata:
+                    standard_data["version"] = layer_metadata["version"]
+                
                 # Create StandardEncryption with correct salt and decrypt
                 salt = base64.b64decode(layer_metadata["salt"])
                 memory_cost = int(layer_metadata["memory_cost"])
@@ -267,7 +305,7 @@ class LayeredEncryption:
                 parallelism = int(layer_metadata["parallelism"])
                 
                 std_enc = StandardEncryption(
-                    passphrase=self.passphrase,
+                    password=self._password,
                     salt=salt,
                     memory_cost=memory_cost,
                     time_cost=time_cost,
@@ -279,13 +317,13 @@ class LayeredEncryption:
         return current_data
 
     @staticmethod
-    def create_from_vault_data(vault_data: Dict[str, Any], passphrase: str) -> 'LayeredEncryption':
+    def create_from_vault_data(vault_data: Dict[str, Any], password: str) -> 'LayeredEncryption':
         """
         Create a LayeredEncryption instance from vault data for decryption.
         
         Args:
             vault_data: The vault data containing layer information
-            passphrase: The passphrase for decryption
+            password: The password for decryption
             
         Returns:
             LayeredEncryption instance configured for decryption
@@ -324,7 +362,7 @@ class LayeredEncryption:
                 parity_shares = int(layer_metadata.get("parity", 2))
         
         return LayeredEncryption(
-            passphrase=passphrase,
+            password=password,
             layers=layers,
             memory_cost=memory_cost,
             time_cost=time_cost,
@@ -333,4 +371,4 @@ class LayeredEncryption:
             shamir_total=shamir_total,
             parity_shares=parity_shares,
             salt=salt
-        ) 
+        )
