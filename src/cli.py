@@ -9,7 +9,7 @@ import json
 import base64
 from typing import List
 from .core import QuantumSecretVault, SecurityConfig, SecurityLayer
-from .utils.validation import validate_seed_phrase, validate_passphrase
+from .utils.validation import validate_secret, validate_password
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
@@ -18,20 +18,20 @@ def parse_arguments():
         epilog="""
 Examples:
   # Create vault
-  %(prog)s create --seed "word1 ... word24" --passphrase "my_25th_word" --layers standard_encryption
+  %(prog)s create --secret "my secret text" --password "my_password" --layers standard_encryption
   # Recover vault
-  %(prog)s recover --vault-path encrypted_seed.json --passphrase "my_25th_word"
+  %(prog)s recover --vault-dir encrypted_secret --password "my_password"
         """
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # Create subcommand
     create_parser = subparsers.add_parser("create", help="Create a new quantum vault")
-    create_parser.add_argument("--seed", type=str, required=True, help="BIP-39 seed phrase (24 words)")
-    create_parser.add_argument("--passphrase", type=str, required=True, help="BIP-39 passphrase (25th word)")
+    create_parser.add_argument("--secret", type=str, required=True, dest="secret", help="Secret text to encrypt")
+    create_parser.add_argument("--password", type=str, required=True, dest="password", help="Encryption password")
     create_parser.add_argument("--layers", nargs='+', choices=[layer.value for layer in SecurityLayer], default=[SecurityLayer.STANDARD_ENCRYPTION.value], help="Security layers to apply (can combine multiple)")
     create_parser.add_argument("--shamir", nargs=2, type=int, metavar=('THRESHOLD', 'TOTAL'), help="Shamir sharing parameters (e.g., 5 7)")
-    create_parser.add_argument("--parity", type=int, default=2, help="Reed-Solomon parity shares (default: 2)")
+    create_parser.add_argument("--parity", type=int, default=20, help="Reed-Solomon parity symbols per share (default: 20, corrects up to 10 byte errors)")
 
     create_parser.add_argument("--output-dir", type=str, default="quantum_vault", help="Output directory (default: quantum_vault)")
     create_parser.add_argument("--memory", type=int, default=524288, help="Argon2 memory cost in KiB (default: 512 MiB)")
@@ -40,26 +40,26 @@ Examples:
     create_parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
 
     # Recover subcommand
-    recover_parser = subparsers.add_parser("recover", help="Recover a seed from a vault directory (supports both single files and Shamir shares)")
+    recover_parser = subparsers.add_parser("recover", help="Recover a secret from a vault directory (supports both single files and Shamir shares)")
     recover_parser.add_argument("--vault-dir", required=True, help="Path to vault directory (containing vault.bin or share files)")
-    recover_parser.add_argument("--passphrase", required=True, help="Passphrase for decryption")
+    recover_parser.add_argument("--password", required=True, dest="password", help="Password for decryption")
     recover_parser.add_argument("-v", "--verbose", action="store_true", help="Show detailed vault information before recovery")
 
     return parser.parse_args()
 
 def validate_arguments(args: argparse.Namespace) -> None:
     """Validate command line arguments."""
-    # Validate seed phrase format
-    if not validate_seed_phrase(args.seed):
-        raise ValueError("Invalid BIP-39 seed phrase format. Must be 12, 15, 18, 21, or 24 lowercase words.")
+    # Validate secret format
+    if not validate_secret(args.secret):
+        raise ValueError("Invalid secret format. Must be non-empty text.")
     
-    # Validate passphrase format
-    if not validate_passphrase(args.passphrase):
-        raise ValueError("Invalid passphrase format. Must be 1-100 characters.")
+    # Validate password format
+    if not validate_password(args.password):
+        raise ValueError("Invalid password format. Must be 1-100 characters.")
     
     # Validate Argon2 parameters
-    if args.memory < 65536:  # 64 MiB minimum for crypto seed security
-        raise ValueError("Argon2 memory cost must be at least 65,536 KiB (64 MiB) for crypto seed security")
+    if args.memory < 65536:  # 64 MiB minimum for security
+        raise ValueError("Argon2 memory cost must be at least 65,536 KiB (64 MiB) for security")
     if args.memory > 4194304:  # 4 GiB maximum (reasonable for high-security personal use)
         raise ValueError("Argon2 memory cost cannot exceed 4,194,304 KiB (4 GiB) - would be too slow")
     if args.time < 1:
@@ -101,7 +101,7 @@ def create_vault(args: argparse.Namespace) -> None:
         shamir_threshold=threshold,
         shamir_total=total,
         parity_shares=args.parity,
-        passphrase=args.passphrase,
+        password=args.password,
         salt=os.urandom(32),
         argon2_memory_cost=args.memory,
         argon2_time_cost=args.time,
@@ -110,8 +110,8 @@ def create_vault(args: argparse.Namespace) -> None:
     
     if args.verbose:
         print(f"[*] Security layers: {', '.join([layer.value for layer in layers])}")
-        print(f"[*] Seed words: {len(args.seed.split())} words")
-        print(f"[*] Passphrase: {'*' * len(args.passphrase)} (hidden for security)")
+        print(f"[*] Secret length: {len(args.secret)} characters")
+        print(f"[*] Password: {'*' * len(args.password)} (hidden for security)")
         print(f"[*] Argon2id parameters:")
         print(f"    - Memory: {args.memory:,} KiB ({args.memory/1024:.0f} MiB)")
         print(f"    - Time: {args.time} iterations")
@@ -123,7 +123,7 @@ def create_vault(args: argparse.Namespace) -> None:
     
     # Create vault
     vault = QuantumSecretVault(config)
-    result = vault.create_vault(args.seed, args.output_dir)
+    result = vault.create_vault(args.secret, args.output_dir)
     
     # Output results
     print(f"[+] Quantum vault created in {args.output_dir}")
@@ -141,9 +141,9 @@ def create_vault(args: argparse.Namespace) -> None:
 def recover_vault(args: argparse.Namespace) -> None:
     # AES-only recovery using QuantumSecretVault static method
     try:
-        seed = QuantumSecretVault.recover_vault(args.vault_dir, args.passphrase, show_details=args.verbose)
-        print("[+] Decryption successful! Recovered seed phrase:")
-        print(seed)
+        secret = QuantumSecretVault.recover_vault(args.vault_dir, args.password, show_details=args.verbose)
+        print("[+] Decryption successful! Recovered secret:")
+        print(secret)
     except Exception as e:
         print(f"[!] Decryption failed: {e}", file=sys.stderr)
         sys.exit(1)
@@ -170,4 +170,4 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    main() 
+    main()

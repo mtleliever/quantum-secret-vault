@@ -20,13 +20,11 @@ def temp_dir():
     shutil.rmtree(temp_dir, ignore_errors=True)
 
 @pytest.fixture
-def sample_seed():
-    """Sample BIP-39 seed phrase for testing."""
+def sample_secret():
+    """Sample secret text for testing."""
     return "abandon ability able about above absent absorb abstract absurd abuse access accident"
 
 @pytest.fixture
-def sample_passphrase():
-    """Sample passphrase for testing."""
-    return "my_test_passphrase_123"
-
- 
+def sample_password():
+    """Sample password for testing."""
+    return "my_test_password_123"

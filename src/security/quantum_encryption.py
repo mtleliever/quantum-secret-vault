@@ -28,33 +28,33 @@ class QuantumEncryption:
     This implementation properly separates password-based and post-quantum
     security layers to avoid entropy vulnerabilities.
     
-    Security: Passphrase is NOT stored - keys are derived on-demand and
+    Security: Password is NOT stored - keys are derived on-demand and
     sensitive material is zeroed after use where possible.
     """
     
-    def __init__(self, passphrase: str, memory_cost: int = 1048576, 
+    def __init__(self, password: str, memory_cost: int = 1048576, 
                  time_cost: int = 5, parallelism: int = 1, auto_tune: bool = True):
         """
         Initialize quantum encryption with Kyber-1024
         
         Args:
-            passphrase: The passphrase to derive keys from (converted to bytes immediately)
+            password: The password to derive keys from (converted to bytes immediately)
             memory_cost: Argon2 memory cost in KiB (default: 1GB)
             time_cost: Argon2 time cost (default: 5)
             parallelism: Argon2 parallelism (default: 1) 
             auto_tune: Whether to auto-tune Argon2 parameters for 500-1000ms
         """
-        # Store passphrase as bytearray for secure zeroing later
-        self._passphrase_bytes = bytearray(passphrase.encode('utf-8'))
+        # Store password as bytearray for secure zeroing later
+        self._password_bytes = bytearray(password.encode('utf-8'))
         self.kem_name = "Kyber1024"
         self.time_cost = time_cost
         self.memory_cost = memory_cost  # 1GB default for high-value data
         self.parallelism = parallelism
     
     def __del__(self):
-        """Securely zero passphrase bytes on destruction."""
-        if hasattr(self, '_passphrase_bytes'):
-            _secure_zero(self._passphrase_bytes)
+        """Securely zero password bytes on destruction."""
+        if hasattr(self, '_password_bytes'):
+            _secure_zero(self._password_bytes)
     
     def _derive_key(self, salt: bytes) -> bytearray:
         """
@@ -67,7 +67,7 @@ class QuantumEncryption:
             64-byte derived key as bytearray (32 bytes for private key encryption + 32 bytes for commitment)
         """
         derived = hash_secret_raw(
-            secret=bytes(self._passphrase_bytes),
+            secret=bytes(self._password_bytes),
             salt=salt,
             time_cost=self.time_cost,
             memory_cost=self.memory_cost,
@@ -217,7 +217,7 @@ class QuantumEncryption:
             expected_commitment = self._generate_key_commitment(combined_key, public_key)
             if not self._constant_time_compare(stored_commitment, expected_commitment):
                 # Generic error - don't reveal what failed
-                raise ValueError("Decryption failed: invalid passphrase or corrupted data")
+                raise ValueError("Decryption failed: invalid password or corrupted data")
             
             # Build AAD for data decryption
             if hkdf_salt is not None:
@@ -241,7 +241,7 @@ class QuantumEncryption:
             # Add small delay to prevent timing attacks
             time.sleep(0.1)
             # Generic error message - don't leak specific failure reason
-            raise ValueError("Decryption failed: invalid passphrase or corrupted data")
+            raise ValueError("Decryption failed: invalid password or corrupted data")
         finally:
             # Securely zero the derived key
             _secure_zero(password_derived_key)

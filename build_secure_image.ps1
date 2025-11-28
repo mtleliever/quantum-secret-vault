@@ -115,6 +115,6 @@ Write-Host "2. Run: .\secure_vault_workflow.ps1" -ForegroundColor Yellow
 Write-Host "3. After operations, reconnect to internet" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "[SECURITY] Remember to:" -ForegroundColor Cyan
-Write-Host "- Use a dedicated, offline machine for crypto operations" -ForegroundColor Cyan
+Write-Host "- Use a dedicated, offline machine for sensitive operations" -ForegroundColor Cyan
 Write-Host "- Never run this on shared or cloud systems" -ForegroundColor Cyan
 Write-Host "- Physically disconnect network cables" -ForegroundColor Cyan

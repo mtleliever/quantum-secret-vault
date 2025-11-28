@@ -1,5 +1,5 @@
 # Secure Air-Gapped Quantum Vault Workflow
-# This script implements maximum security practices for crypto operations
+# This script implements maximum security practices for encryption operations
 
 param(
     [switch]$Force = $false
@@ -129,38 +129,38 @@ function New-SecureInput {
         [string]$Operation = "create"
     )
     
-    $seedFile = Join-Path $SECURE_TMPDIR "seed.txt"
-    $passphraseFile = Join-Path $SECURE_TMPDIR "passphrase.txt"
+    $secretFile = Join-Path $SECURE_TMPDIR "secret.txt"
+    $passwordFile = Join-Path $SECURE_TMPDIR "password.txt"
     
     Write-Host "[INPUT] Creating secure input files..." -ForegroundColor Cyan
     
-    # Only ask for seed phrase when creating (not recovering)
+    # Only ask for secret when creating (not recovering)
     if ($Operation -eq "create") {
-        Write-Host "Enter your 24-word seed phrase:" -ForegroundColor Yellow
-        $seedPhrase = Read-Host "Seed" -AsSecureString
-        $seedPlaintext = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($seedPhrase))
-        Set-Content -Path $seedFile -Value $seedPlaintext -NoNewline
+        Write-Host "Enter your secret text to encrypt:" -ForegroundColor Yellow
+        $secretInput = Read-Host "Secret" -AsSecureString
+        $secretPlaintext = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secretInput))
+        Set-Content -Path $secretFile -Value $secretPlaintext -NoNewline
         
         # Clear from memory
-        $seedPlaintext = $null
-        $seedPhrase = $null
+        $secretPlaintext = $null
+        $secretInput = $null
     }
     
-    # Always ask for passphrase (needed for both create and recover)
-    Write-Host "Enter your passphrase - 25th word:" -ForegroundColor Yellow
-    $passphrase = Read-Host "Passphrase" -AsSecureString
-    $passphrasePlaintext = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($passphrase))
-    Set-Content -Path $passphraseFile -Value $passphrasePlaintext -NoNewline
+    # Always ask for password (needed for both create and recover)
+    Write-Host "Enter your encryption password:" -ForegroundColor Yellow
+    $password = Read-Host "Password" -AsSecureString
+    $passwordPlaintext = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($password))
+    Set-Content -Path $passwordFile -Value $passwordPlaintext -NoNewline
     
     # Clear from memory
-    $passphrasePlaintext = $null
-    $passphrase = $null
+    $passwordPlaintext = $null
+    $password = $null
     [GC]::Collect()
     
     # Set restrictive permissions on files that exist
     $files = @()
-    if (Test-Path $seedFile) { $files += $seedFile }
-    if (Test-Path $passphraseFile) { $files += $passphraseFile }
+    if (Test-Path $secretFile) { $files += $secretFile }
+    if (Test-Path $passwordFile) { $files += $passwordFile }
     
     foreach ($file in $files) {
         $acl = Get-Acl $file
@@ -176,13 +176,13 @@ function New-SecureInput {
     
     Write-Host "[INPUT] OK - Secure input files created" -ForegroundColor Green
     if ($Operation -eq "create") {
-        Write-Host "Seed file: $seedFile" -ForegroundColor White
+        Write-Host "Secret file: $secretFile" -ForegroundColor White
     }
-    Write-Host "Passphrase file: $passphraseFile" -ForegroundColor White
+    Write-Host "Password file: $passwordFile" -ForegroundColor White
     
     return @{
-        SeedFile = $seedFile
-        PassphraseFile = $passphraseFile
+        SecretFile = $secretFile
+        PasswordFile = $passwordFile
     }
 }
 
@@ -193,18 +193,18 @@ function Invoke-QuantumVault {
         [hashtable]$InputFiles
     )
     
-    $seedFile = $InputFiles.SeedFile
-    $passphraseFile = $InputFiles.PassphraseFile
+    $secretFile = $InputFiles.SecretFile
+    $passwordFile = $InputFiles.PasswordFile
     $outputDir = Join-Path $SECURE_TMPDIR "vault_output"
     
     Write-Host "[VAULT] Running quantum vault operation: $Operation" -ForegroundColor Cyan
     
     # Read file contents for Docker command (only read files that exist)
-    $seedContent = ""
-    if ($seedFile -and (Test-Path $seedFile)) {
-        $seedContent = Get-Content $seedFile -Raw
+    $secretContent = ""
+    if ($secretFile -and (Test-Path $secretFile)) {
+        $secretContent = Get-Content $secretFile -Raw
     }
-    $passphraseContent = Get-Content $passphraseFile -Raw
+    $passwordContent = Get-Content $passwordFile -Raw
     
     switch ($Operation) {
         "create" {
@@ -242,15 +242,14 @@ function Invoke-QuantumVault {
                 "-v", "${SECURE_TMPDIR}:/secure",
                 $DOCKER_IMAGE,
                 "python3", "-m", "src.cli", "create",
-                "--seed", $seedContent,
-                "--passphrase", $passphraseContent,
+                "--secret", $secretContent,
+                "--password", $passwordContent,
                 "--memory", "4194304",
                 "--time", "20",
                 "--threads", "8",
                 "--layers"
             ) + $layers.Split(' ') + @(
-                "--output-dir", "/secure/vault_output",
-                "--verbose"
+                "--output-dir", "/secure/vault_output"
             )
             
             if ($shamirArgs) {
@@ -282,8 +281,7 @@ function Invoke-QuantumVault {
                 $DOCKER_IMAGE,
                 "python3", "-m", "src.cli", "recover",
                 "--vault-dir", "/vault",
-                "--passphrase", $passphraseContent,
-                "--verbose"
+                "--password", $passwordContent
             )
             
             & docker @dockerCmd
@@ -304,11 +302,11 @@ function Remove-SecureInput {
     
     # Only include files that exist
     $files = @()
-    if ($InputFiles.SeedFile -and (Test-Path $InputFiles.SeedFile)) {
-        $files += $InputFiles.SeedFile
+    if ($InputFiles.SecretFile -and (Test-Path $InputFiles.SecretFile)) {
+        $files += $InputFiles.SecretFile
     }
-    if ($InputFiles.PassphraseFile -and (Test-Path $InputFiles.PassphraseFile)) {
-        $files += $InputFiles.PassphraseFile
+    if ($InputFiles.PasswordFile -and (Test-Path $InputFiles.PasswordFile)) {
+        $files += $InputFiles.PasswordFile
     }
     
     foreach ($file in $files) {
@@ -335,7 +333,7 @@ function Remove-SecureInput {
 # Main execution
 function Main {
     Write-Host "=== SECURE QUANTUM VAULT WORKFLOW ===" -ForegroundColor Green
-    Write-Host "Maximum security air-gapped crypto operations" -ForegroundColor Yellow
+    Write-Host "Maximum security air-gapped encryption operations" -ForegroundColor Yellow
     Write-Host ""
     
     # Security checks
@@ -358,7 +356,7 @@ function Main {
         }
     }
     
-    # Create secure inputs (only asks for seed when creating, not recovering)
+    # Create secure inputs (only asks for secret when creating, not recovering)
     $inputFiles = New-SecureInput -Operation $operation
     
     try {

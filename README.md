@@ -42,31 +42,31 @@ The vault supports **3 security layers** that can be combined in any order:
 
 #### **Basic Standard Encryption Only**
 ```bash
-./run.sh create "word1 word2 ... word24" "password" standard_encryption
+./run.sh create "my secret text data" "password" standard_encryption
 ```
 *Output: Single encrypted file*
 
 #### **Quantum + Standard Encryption (Default Security)**
 ```bash
-./run.sh create "word1 word2 ... word24" "password" standard_encryption quantum_encryption
+./run.sh create "my secret text data" "password" standard_encryption quantum_encryption
 ```
 *Output: Double-encrypted file (AES + Kyber)*
 
 #### **High Security (1GB Memory, 12 Iterations)**
 ```bash
-./run.sh create "word1 word2 ... word24" "password" standard_encryption quantum_encryption --memory 1048576 --time 12 --threads 4
+./run.sh create "my secret text data" "password" standard_encryption quantum_encryption --memory 1048576 --time 12 --threads 4
 ```
 *Output: High-security encrypted file with enhanced computational resistance*
 
 #### **Ultra-High Security (4GB Memory, 20 Iterations)**
 ```bash
-./run.sh create "word1 word2 ... word24" "password" standard_encryption quantum_encryption --memory 4194304 --time 20 --threads 8
+./run.sh create "my secret text data" "password" standard_encryption quantum_encryption --memory 4194304 --time 20 --threads 8
 ```
 *Output: Ultra-secure encrypted file with maximum computational resistance*
 
 #### **Maximum Security with Geographic Distribution**
 ```bash
-./run.sh create "word1 word2 ... word24" "password" standard_encryption quantum_encryption shamir_sharing --memory 4194304 --time 20 --threads 8 --shamir 3 5
+./run.sh create "my secret text data" "password" standard_encryption quantum_encryption shamir_sharing --memory 4194304 --time 20 --threads 8 --shamir 3 5
 ```
 *Output: 5 ultra-secure shares (need 3 to recover)*
 
@@ -77,7 +77,7 @@ The vault supports **3 security layers** that can be combined in any order:
 ```bash
 ./run.sh recover folder_name_containing_vault_files "password"
 ```
-*Output: The originally secured seedphrase*
+*Output: The originally secured secret*
 
 ---
 
@@ -86,7 +86,7 @@ The vault supports **3 security layers** that can be combined in any order:
 ### **Single File Vault** (no Shamir sharing)
 ```
 vault_output/
-└── vault.bin                   # Encrypted seed data
+└── vault.bin                   # Encrypted secret data
 ```
 
 ### **Multi-Share Vault** (with Shamir sharing)
@@ -120,25 +120,25 @@ Control the computational cost of brute-force attacks with these parameters:
 ### **Custom Shamir Parameters with High Security**
 ```bash
 # 3-of-5 sharing with high security parameters
-./run.sh create "seed phrase" "passphrase" standard_encryption quantum_encryption shamir_sharing --memory 2097152 --time 15 --threads 4 --shamir 3 5
+./run.sh create "my secret" "password" standard_encryption quantum_encryption shamir_sharing --memory 2097152 --time 15 --threads 4 --shamir 3 5
 ```
 
-### **Million-Dollar Security Setup**
+### **Maximum Security Setup**
 ```bash
-# Ultimate protection for high-value assets
-./run.sh create "seed phrase" "passphrase" standard_encryption quantum_encryption shamir_sharing --memory 4194304 --time 20 --threads 8 --shamir 3 7 --parity 3
+# Ultimate protection for sensitive data
+./run.sh create "my secret" "password" standard_encryption quantum_encryption shamir_sharing --memory 4194304 --time 20 --threads 8 --shamir 3 7 --parity 3
 ```
 
 ### **Fast Testing with Lower Security**
 ```bash
 # Quick testing with minimal security (NOT for real secrets)
-./run.sh create "seed phrase" "passphrase" standard_encryption --memory 65536 --time 3 --threads 1
+./run.sh create "test secret" "password" standard_encryption --memory 65536 --time 3 --threads 1
 ```
 
 ### **Custom Security Parameters**
 ```bash
 # Customize any parameter combination
-./run.sh create "seed phrase" "passphrase" standard_encryption quantum_encryption \
+./run.sh create "my secret" "password" standard_encryption quantum_encryption \
   --memory 1048576 \    # 1 GB memory
   --time 12 \           # 12 iterations
   --threads 4 \         # 4 parallel threads
@@ -152,7 +152,7 @@ Control the computational cost of brute-force attacks with these parameters:
 ### **1. Standard/Quantum Encryption Recovery**
 ```python
 # Load encrypted data
-with open('encrypted_seed.json') as f:
+with open('encrypted_secret.json') as f:
     data = json.load(f)
 
 # Decrypt layers in reverse order
@@ -196,8 +196,8 @@ recovered = shamir.recover_secret(shares)
 | `standard_encryption` (default) | 🔒 Standard | Baseline cryptographic security | Daily use, current threats |
 | `quantum_encryption` (default) | ⚛️ Quantum | Post-quantum resistance | Long-term storage, future-proof |
 | `standard_encryption` + `quantum_encryption` | 🔒⚛️ Hybrid | Dual-layer protection | Maximum current + future security |
-| + High Security Parameters (1GB/12it) | 🔒⚛️🚀 Enhanced | Significantly increased resistance | Extremely sensitive secrets |
-| + Ultra-High Parameters (4GB/20it) | 🔒⚛️🚀💎 Ultimate | Maximum computational resistance | High-value asset protection |
+| + High Security Parameters (1GB/12it) | 🔒⚛️🚀 Enhanced | Significantly increased resistance | Sensitive data protection |
+| + Ultra-High Parameters (4GB/20it) | 🔒⚛️🚀💎 Ultimate | Maximum computational resistance | Long-term secure storage |
 | + `shamir_sharing` | 🔀 Distributed | Same + Redundancy | Geographic backup, redundancy |
 
 

@@ -35,14 +35,14 @@ class QuantumSecretVault:
         """
         self.config = config
         self.standard_enc = StandardEncryption(
-            config.passphrase,
+            config.password,
             config.salt,
             config.argon2_memory_cost,
             config.argon2_time_cost,
             config.argon2_parallelism,
         )
         self.quantum_enc = QuantumEncryption(
-            passphrase=config.passphrase,
+            password=config.password,
             memory_cost=config.argon2_memory_cost,
             time_cost=config.argon2_time_cost,
             parallelism=config.argon2_parallelism,
@@ -52,13 +52,13 @@ class QuantumSecretVault:
         )
 
 
-    def encrypt_seed(self, seed: str) -> Dict[str, Any]:
+    def encrypt_secret(self, secret: str) -> Dict[str, Any]:
         """
-        Encrypt seed using selected security layers in a modular, layered approach.
+        Encrypt secret using selected security layers in a modular, layered approach.
         All layers including Shamir sharing are handled by LayeredEncryption.
 
         Args:
-            seed: Seed string to encrypt
+            secret: Secret string to encrypt
 
         Returns:
             Dictionary with encrypted data/shares and metadata
@@ -66,7 +66,7 @@ class QuantumSecretVault:
         # Apply layered encryption with all configured layers
         if self.config.layers:
             layered_enc = LayeredEncryption(
-                passphrase=self.config.passphrase,
+                password=self.config.password,
                 layers=self.config.layers,
                 memory_cost=self.config.argon2_memory_cost,
                 time_cost=self.config.argon2_time_cost,
@@ -77,23 +77,23 @@ class QuantumSecretVault:
                 salt=self.config.salt,
             )
 
-            # Encrypt the seed through all layers
-            return layered_enc.encrypt(seed.encode("utf-8"))
+            # Encrypt the secret through all layers
+            return layered_enc.encrypt(secret.encode("utf-8"))
         else:
-            # No layers - just encode the seed
+            # No layers - just encode the secret
             return {
                 "layers": [],
-                "ciphertext": base64.b64encode(seed.encode("utf-8")).decode("utf-8"),
+                "ciphertext": base64.b64encode(secret.encode("utf-8")).decode("utf-8"),
             }
 
     def create_vault(
-        self, seed: str, output_dir: str, allowed_base: Optional[str] = None
+        self, secret: str, output_dir: str, allowed_base: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Create the complete vault with all selected layers.
 
         Args:
-            seed: Seed string to protect
+            secret: Secret string to protect
             output_dir: Directory to create vault in
             allowed_base: Optional base directory for path validation.
                          If provided, output_dir must be within this directory.
@@ -118,8 +118,8 @@ class QuantumSecretVault:
             os.makedirs(shares_dir, exist_ok=True)
             set_secure_directory_permissions(shares_dir)
 
-        # Encrypt the seed
-        result = self.encrypt_seed(seed)
+        # Encrypt the secret
+        result = self.encrypt_secret(secret)
 
         vault_info = {
             "vault_created": True,
@@ -322,20 +322,20 @@ class QuantumSecretVault:
         return vault_info
 
     @staticmethod
-    def recover_vault(vault_dir: str, passphrase: str, show_details: bool = False,
+    def recover_vault(vault_dir: str, password: str, show_details: bool = False,
                       allowed_base: Optional[str] = None) -> str:
         """
-        Recover the original seed phrase from a vault directory using the provided passphrase.
+        Recover the original secret from a vault directory using the provided password.
         Supports modular layered encryption with standard_encryption, quantum_encryption, and combinations.
         
         Args:
             vault_dir: Directory containing vault.bin
-            passphrase: Passphrase for decryption
+            password: Password for decryption
             show_details: If True, print detailed vault information before recovery
             allowed_base: Optional base directory for path validation
             
         Returns:
-            Decrypted seed phrase
+            Decrypted secret
             
         Raises:
             PathTraversalError: If vault_dir would escape allowed_base
@@ -390,7 +390,7 @@ class QuantumSecretVault:
             pass
         elif os.path.exists(shares_path) or any(f.startswith("share_") and f.endswith(".bin") for f in os.listdir(validated_vault_dir)):
             # Shamir shares vault - load shares and reconstruct vault data
-            return QuantumSecretVault._recover_from_shares(validated_vault_dir, passphrase, show_details=show_details)
+            return QuantumSecretVault._recover_from_shares(validated_vault_dir, password, show_details=show_details)
         else:
             raise FileNotFoundError(f"No vault.bin or share files found in {validated_vault_dir}")
 
@@ -413,7 +413,7 @@ class QuantumSecretVault:
             if "layers" in cbor_data and ("ciphertext" in cbor_data):
                 # New layered encryption format
                 layered_enc = LayeredEncryption.create_from_vault_data(
-                    cbor_data, passphrase
+                    cbor_data, password
                 )
                 decrypted_data = layered_enc.decrypt(cbor_data)
                 return decrypted_data.decode()
@@ -434,7 +434,7 @@ class QuantumSecretVault:
                     parallelism = int(enc.get("parallelism", 1))
 
                     se = StandardEncryption(
-                        passphrase,
+                        password,
                         salt=salt,
                         memory_cost=memory_cost,
                         time_cost=time_cost,
@@ -454,7 +454,7 @@ class QuantumSecretVault:
 
                     # Initialize quantum encryption
                     qe = QuantumEncryption(
-                        passphrase=passphrase,
+                        password=password,
                         memory_cost=memory_cost,
                         time_cost=time_cost,
                         parallelism=parallelism,
@@ -481,20 +481,20 @@ class QuantumSecretVault:
             raise
         except Exception:
             # Generic error message to prevent information leakage
-            raise ValueError("Decryption failed: invalid passphrase or corrupted data")
+            raise ValueError("Decryption failed: invalid password or corrupted data")
 
     @staticmethod
-    def _recover_from_shares(vault_dir: str, passphrase: str, show_details: bool = False) -> str:
+    def _recover_from_shares(vault_dir: str, password: str, show_details: bool = False) -> str:
         """
         Recover from Shamir share files using integrated LayeredEncryption.
         
         Args:
             vault_dir: Directory containing share files
-            passphrase: Passphrase for decryption
+            password: Password for decryption
             show_details: If True, print detailed recovery information
             
         Returns:
-            Decrypted seed phrase
+            Decrypted secret
         """
         # Find share files
         shares_path = os.path.join(vault_dir, "shares")
@@ -557,13 +557,12 @@ class QuantumSecretVault:
         # Use LayeredEncryption to decrypt (handles Shamir reconstruction internally)
         if layer_info:
             try:
-                layered_enc = LayeredEncryption.create_from_vault_data(vault_data, passphrase)
+                layered_enc = LayeredEncryption.create_from_vault_data(vault_data, password)
                 decrypted_data = layered_enc.decrypt(vault_data)
                 return decrypted_data.decode()
             except Exception:
                 # Generic error message to prevent information leakage
-                raise ValueError("Decryption failed: invalid passphrase or corrupted data")
+                raise ValueError("Decryption failed: invalid password or corrupted data")
         else:
             # No encryption layers - shouldn't happen with Shamir but handle gracefully
             raise ValueError("No encryption layers found in share data")
-

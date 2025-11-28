@@ -2,26 +2,30 @@
 # Pin base image to specific digest for immutability
 FROM ubuntu:22.04@sha256:0bced47fffa3361afa981854fcabcd4577cd43cebbb808cea2b1f33a3dd7f508 AS builder
 
-# Pin all system dependencies to specific versions
+# Install system dependencies
+# Note: apt packages are NOT version-pinned because:
+# 1. Base image is pinned by SHA256 digest - provides reproducibility
+# 2. apt packages receive security updates - pinning breaks when updates occur
+# 3. Critical crypto deps (liboqs, Python packages) ARE pinned below
 RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    python3.10=3.10.12-1~22.04.11 \
-    python3-pip=22.0.2+dfsg-1ubuntu0.6 \
-    build-essential=12.9ubuntu3 \
-    cmake=3.22.1-1ubuntu1.22.04.2 \
-    ninja-build=1.10.1-1 \
-    git=1:2.34.1-1ubuntu1.15 \
-    astyle=3.1-2build1 \
-    gcc=4:11.2.0-1ubuntu1 \
-    libssl-dev=3.0.2-0ubuntu1.19 \
-    python3-pytest=6.2.5-1ubuntu2 \
-    python3-pytest-xdist=2.5.0-1 \
-    unzip=6.0-26ubuntu3.2 \
-    xsltproc=1.1.34-4ubuntu0.22.04.4 \
-    doxygen=1.9.1-2ubuntu2 \
-    graphviz=2.42.2-6 \
-    python3-yaml=5.4.1-1ubuntu1 \
-    valgrind=1:3.18.1-1ubuntu2 \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    python3.10 \
+    python3-pip \
+    build-essential \
+    cmake \
+    ninja-build \
+    git \
+    astyle \
+    gcc \
+    libssl-dev \
+    python3-pytest \
+    python3-pytest-xdist \
+    unzip \
+    xsltproc \
+    doxygen \
+    graphviz \
+    python3-yaml \
+    valgrind \
     && rm -rf /var/lib/apt/lists/*
 
 # Install liboqs C library with pinned version and verification
@@ -71,12 +75,12 @@ RUN pip3 install --no-cache-dir -r /app/tests/requirements.txt
 # Runtime stage - minimal attack surface
 FROM ubuntu:22.04@sha256:0bced47fffa3361afa981854fcabcd4577cd43cebbb808cea2b1f33a3dd7f508 AS runtime
 
-# Install only essential runtime dependencies with pinned versions
+# Install only essential runtime dependencies (minimal attack surface)
 RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    python3.10=3.10.12-1~22.04.11 \
-    python3-pip=22.0.2+dfsg-1ubuntu0.6 \
-    libssl3=3.0.2-0ubuntu1.19 \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    python3.10 \
+    python3-pip \
+    libssl3 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 

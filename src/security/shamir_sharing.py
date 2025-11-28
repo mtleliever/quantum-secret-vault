@@ -31,14 +31,15 @@ class ShamirSharing:
     maintaining the k-of-n threshold property.
     """
     
-    def __init__(self, threshold: int, total: int, parity: int = 2):
+    def __init__(self, threshold: int, total: int, parity: int = 20):
         """
         Initialize Shamir sharing.
         
         Args:
             threshold: Minimum number of shares needed to recover (must be >= 2)
             total: Total number of shares to create (must be >= threshold)
-            parity: Number of Reed-Solomon parity symbols per share
+            parity: Number of Reed-Solomon parity symbols per share (default: 20,
+                   which corrects up to 10 byte errors - suitable for long-term storage)
             
         Raises:
             ValueError: If parameters are invalid

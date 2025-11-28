@@ -2,7 +2,7 @@
 Utility functions for the quantum secret vault.
 """
 
-from .validation import validate_seed_phrase, validate_passphrase
+from .validation import validate_secret, validate_password
 from .file_utils import (
     ensure_directory, 
     safe_write_json, 
@@ -17,8 +17,8 @@ from .file_utils import (
 )
 
 __all__ = [
-    'validate_seed_phrase', 
-    'validate_passphrase', 
+    'validate_secret',
+    'validate_password',
     'ensure_directory', 
     'safe_write_json',
     'safe_read_json',

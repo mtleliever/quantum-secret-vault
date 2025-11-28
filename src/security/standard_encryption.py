@@ -20,32 +20,32 @@ class StandardEncryption:
     """
     Standard AES-256-GCM encryption with Argon2id key derivation.
     
-    Security: Passphrase is stored as bytearray for secure zeroing.
+    Security: Password is stored as bytearray for secure zeroing.
     """
     
-    def __init__(self, passphrase: str, salt: Optional[bytes] = None, 
+    def __init__(self, password: str, salt: Optional[bytes] = None, 
                  memory_cost: int = 524288, time_cost: int = 5, parallelism: int = 1):
         """
         Initialize standard encryption.
         
         Args:
-            passphrase: The passphrase to derive the key from
+            password: The password to derive the key from
             salt: Optional salt for key derivation (generated if not provided)
-            memory_cost: Memory usage in KiB (default: 512 MiB for crypto seed security)
+            memory_cost: Memory usage in KiB (default: 512 MiB for security)
             time_cost: Number of iterations (default: 5)
             parallelism: Number of parallel threads (default: 1)
         """
-        # Store passphrase as bytearray for secure zeroing later
-        self._passphrase_bytes = bytearray(passphrase.encode('utf-8'))
+        # Store password as bytearray for secure zeroing later
+        self._password_bytes = bytearray(password.encode('utf-8'))
         self.salt = salt or os.urandom(32)
         self.memory_cost = memory_cost  # 512 MiB default
         self.time_cost = time_cost      # 5 iterations default
         self.parallelism = parallelism  # 1 thread default
     
     def __del__(self):
-        """Securely zero passphrase bytes on destruction."""
-        if hasattr(self, '_passphrase_bytes'):
-            _secure_zero(self._passphrase_bytes)
+        """Securely zero password bytes on destruction."""
+        if hasattr(self, '_password_bytes'):
+            _secure_zero(self._password_bytes)
     
     def _derive_key(self) -> bytearray:
         """
@@ -55,7 +55,7 @@ class StandardEncryption:
             32-byte derived key as bytearray for secure zeroing
         """
         derived = hash_secret_raw(
-            secret=bytes(self._passphrase_bytes),
+            secret=bytes(self._password_bytes),
             salt=self.salt,
             time_cost=self.time_cost,
             memory_cost=self.memory_cost,
@@ -135,7 +135,7 @@ class StandardEncryption:
             # Add small delay to prevent timing attacks
             time.sleep(0.1)
             # Generic error message - don't leak specific failure reason
-            raise ValueError("Decryption failed: invalid passphrase or corrupted data")
+            raise ValueError("Decryption failed: invalid password or corrupted data")
         finally:
             # Securely zero the derived key
             _secure_zero(key)

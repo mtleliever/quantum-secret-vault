@@ -26,18 +26,18 @@ class LayeredEncryption:
     This class provides a modular approach where data flows through multiple
     encryption layers in sequence, with each layer wrapping the previous one.
     
-    Security: Passphrase is stored as bytearray for secure zeroing.
+    Security: Password is stored as bytearray for secure zeroing.
     """
     
-    def __init__(self, passphrase: str, layers: List[SecurityLayer], 
+    def __init__(self, password: str, layers: List[SecurityLayer], 
                  memory_cost: int = 524288, time_cost: int = 5, parallelism: int = 1,
-                 shamir_threshold: int = 3, shamir_total: int = 5, parity_shares: int = 2,
+                 shamir_threshold: int = 3, shamir_total: int = 5, parity_shares: int = 20,
                  salt: Optional[bytes] = None):
         """
         Initialize the layered encryption system.
         
         Args:
-            passphrase: The passphrase to use for encryption
+            password: The password to use for encryption
             layers: List of security layers to apply in order
             memory_cost: Argon2 memory cost in KiB
             time_cost: Argon2 time cost
@@ -46,9 +46,9 @@ class LayeredEncryption:
             shamir_total: Total number of Shamir shares to create
             parity_shares: Number of Reed-Solomon parity shares
         """
-        # Store passphrase as bytearray for secure zeroing later
-        self._passphrase_bytes = bytearray(passphrase.encode('utf-8'))
-        self._passphrase = passphrase  # Keep string for passing to encryption classes
+        # Store password as bytearray for secure zeroing later
+        self._password_bytes = bytearray(password.encode('utf-8'))
+        self._password = password  # Keep string for passing to encryption classes
         self.layers = layers
         self.memory_cost = memory_cost
         self.time_cost = time_cost
@@ -59,7 +59,7 @@ class LayeredEncryption:
         
         # Initialize encryption instances
         self.standard_enc = StandardEncryption(
-            passphrase,
+            password,
             salt=salt,
             memory_cost=memory_cost,
             time_cost=time_cost,
@@ -67,7 +67,7 @@ class LayeredEncryption:
         )
         
         self.quantum_enc = QuantumEncryption(
-            passphrase=passphrase,
+            password=password,
             memory_cost=memory_cost,
             time_cost=time_cost,
             parallelism=parallelism
@@ -80,9 +80,9 @@ class LayeredEncryption:
         )
     
     def __del__(self):
-        """Securely zero passphrase bytes on destruction."""
-        if hasattr(self, '_passphrase_bytes'):
-            _secure_zero(self._passphrase_bytes)
+        """Securely zero password bytes on destruction."""
+        if hasattr(self, '_password_bytes'):
+            _secure_zero(self._password_bytes)
     
     def encrypt(self, data: bytes) -> Dict[str, Any]:
         """
@@ -305,7 +305,7 @@ class LayeredEncryption:
                 parallelism = int(layer_metadata["parallelism"])
                 
                 std_enc = StandardEncryption(
-                    passphrase=self._passphrase,
+                    password=self._password,
                     salt=salt,
                     memory_cost=memory_cost,
                     time_cost=time_cost,
@@ -317,13 +317,13 @@ class LayeredEncryption:
         return current_data
 
     @staticmethod
-    def create_from_vault_data(vault_data: Dict[str, Any], passphrase: str) -> 'LayeredEncryption':
+    def create_from_vault_data(vault_data: Dict[str, Any], password: str) -> 'LayeredEncryption':
         """
         Create a LayeredEncryption instance from vault data for decryption.
         
         Args:
             vault_data: The vault data containing layer information
-            passphrase: The passphrase for decryption
+            password: The password for decryption
             
         Returns:
             LayeredEncryption instance configured for decryption
@@ -362,7 +362,7 @@ class LayeredEncryption:
                 parity_shares = int(layer_metadata.get("parity", 2))
         
         return LayeredEncryption(
-            passphrase=passphrase,
+            password=password,
             layers=layers,
             memory_cost=memory_cost,
             time_cost=time_cost,

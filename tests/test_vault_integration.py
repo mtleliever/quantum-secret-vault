@@ -16,8 +16,8 @@ class TestVaultIntegration:
     
     def test_shamir_sharing_integration(self):
         """Test complete Shamir sharing workflow with layered encryption."""
-        seed = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
-        passphrase = "test_passphrase_123"
+        secret = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+        password = "test_password_123"
         
         # Create temporary directory for vault
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -27,7 +27,7 @@ class TestVaultIntegration:
                 shamir_threshold=3,
                 shamir_total=5,
                 parity_shares=2,
-                passphrase=passphrase,
+                password=password,
                 salt=os.urandom(32),
                 argon2_memory_cost=65536,  # Lower for test speed
                 argon2_time_cost=3,
@@ -36,7 +36,7 @@ class TestVaultIntegration:
             
             # Create vault
             vault = QuantumSecretVault(config)
-            result = vault.create_vault(seed, temp_dir)
+            result = vault.create_vault(secret, temp_dir)
             
             # Verify vault creation
             assert result["vault_created"] is True
@@ -51,16 +51,16 @@ class TestVaultIntegration:
             assert len(share_files) == 5  # 5 Reed-Solomon encoded shares
             
             # Test recovery using the general recover_vault method (auto-detection)  
-            recovered_seed = QuantumSecretVault.recover_vault(
-                temp_dir, passphrase, show_details=True
+            recovered_secret = QuantumSecretVault.recover_vault(
+                temp_dir, password, show_details=True
             )
             
-            assert recovered_seed == seed
+            assert recovered_secret == secret
     
     def test_shamir_with_quantum_encryption(self):
         """Test Shamir sharing with quantum encryption layer."""
-        seed = "test seed phrase for quantum shamir integration"
-        passphrase = "quantum_test_pass"
+        secret = "test secret text for quantum shamir integration"
+        password = "quantum_test_pass"
         
         with tempfile.TemporaryDirectory() as temp_dir:
             # Configure vault with both quantum encryption and Shamir sharing
@@ -69,7 +69,7 @@ class TestVaultIntegration:
                 shamir_threshold=2,
                 shamir_total=3,
                 parity_shares=1,
-                passphrase=passphrase,
+                password=password,
                 salt=os.urandom(32),
                 argon2_memory_cost=65536,
                 argon2_time_cost=3,
@@ -78,7 +78,7 @@ class TestVaultIntegration:
             
             # Create vault
             vault = QuantumSecretVault(config)
-            result = vault.create_vault(seed, temp_dir)
+            result = vault.create_vault(secret, temp_dir)
             
             # Verify creation
             assert result["vault_created"] is True
@@ -86,16 +86,16 @@ class TestVaultIntegration:
             assert len(result["files_created"]) == 3  # 3 Reed-Solomon encoded shares
             
             # Test recovery
-            recovered_seed = QuantumSecretVault.recover_vault(
-                temp_dir, passphrase
+            recovered_secret = QuantumSecretVault.recover_vault(
+                temp_dir, password
             )
             
-            assert recovered_seed == seed
+            assert recovered_secret == secret
     
     def test_shamir_with_layered_encryption(self):
         """Test Shamir sharing with both standard and quantum encryption."""
-        seed = "multi layer encryption test seed phrase here"
-        passphrase = "multi_layer_pass"
+        secret = "multi layer encryption test secret text here"
+        password = "multi_layer_pass"
         
         with tempfile.TemporaryDirectory() as temp_dir:
             # Configure vault with multiple encryption layers + Shamir
@@ -108,7 +108,7 @@ class TestVaultIntegration:
                 shamir_threshold=4,
                 shamir_total=6,
                 parity_shares=2,
-                passphrase=passphrase,
+                password=password,
                 salt=os.urandom(32),
                 argon2_memory_cost=65536,
                 argon2_time_cost=3,
@@ -117,7 +117,7 @@ class TestVaultIntegration:
             
             # Create vault
             vault = QuantumSecretVault(config)
-            result = vault.create_vault(seed, temp_dir)
+            result = vault.create_vault(secret, temp_dir)
             
             # Verify creation
             assert result["vault_created"] is True
@@ -126,23 +126,23 @@ class TestVaultIntegration:
             assert len(result["files_created"]) == 6  # 6 Reed-Solomon encoded shares
             
             # Test recovery with exactly threshold shares
-            recovered_seed = QuantumSecretVault.recover_vault(
-                temp_dir, passphrase
+            recovered_secret = QuantumSecretVault.recover_vault(
+                temp_dir, password
             )
             
-            assert recovered_seed == seed
+            assert recovered_secret == secret
             
             # Test recovery with more than threshold shares  
-            recovered_seed = QuantumSecretVault.recover_vault(
-                temp_dir, passphrase
+            recovered_secret = QuantumSecretVault.recover_vault(
+                temp_dir, password
             )
             
-            assert recovered_seed == seed
+            assert recovered_secret == secret
     
     def test_shamir_only_no_encryption(self):
         """Test Shamir sharing without any encryption layers."""
-        seed = "plain shamir test without encryption layers"
-        passphrase = "not_used_for_encryption"
+        secret = "plain shamir test without encryption layers"
+        password = "not_used_for_encryption"
         
         with tempfile.TemporaryDirectory() as temp_dir:
             # Configure vault with only Shamir sharing
@@ -151,13 +151,13 @@ class TestVaultIntegration:
                 shamir_threshold=2,
                 shamir_total=4,
                 parity_shares=1,
-                passphrase=passphrase,
+                password=password,
                 salt=os.urandom(32)
             )
             
             # Create vault
             vault = QuantumSecretVault(config)
-            result = vault.create_vault(seed, temp_dir)
+            result = vault.create_vault(secret, temp_dir)
             
             # Verify creation
             assert result["vault_created"] is True
@@ -166,16 +166,16 @@ class TestVaultIntegration:
             assert len(result["files_created"]) == 4  # 4 Reed-Solomon encoded shares
             
             # Test recovery
-            recovered_seed = QuantumSecretVault.recover_vault(
-                temp_dir, passphrase
+            recovered_secret = QuantumSecretVault.recover_vault(
+                temp_dir, password
             )
             
-            assert recovered_seed == seed
+            assert recovered_secret == secret
     
     def test_insufficient_shares_error(self):
         """Test that recovery fails with insufficient shares."""
-        seed = "test insufficient shares error handling"
-        passphrase = "test_pass"
+        secret = "test insufficient shares error handling"
+        password = "test_pass"
         
         with tempfile.TemporaryDirectory() as temp_dir:
             config = SecurityConfig(
@@ -183,7 +183,7 @@ class TestVaultIntegration:
                 shamir_threshold=4,
                 shamir_total=5,
                 parity_shares=1,
-                passphrase=passphrase,
+                password=password,
                 salt=os.urandom(32),
                 argon2_memory_cost=65536,
                 argon2_time_cost=3,
@@ -192,7 +192,7 @@ class TestVaultIntegration:
             
             # Create vault
             vault = QuantumSecretVault(config)
-            vault.create_vault(seed, temp_dir)
+            vault.create_vault(secret, temp_dir)
             
             # Remove some share files to simulate insufficient shares
             shares_dir = os.path.join(temp_dir, "shares")
@@ -204,15 +204,15 @@ class TestVaultIntegration:
             
             # Should fail with insufficient shares
             with pytest.raises(ValueError):
-                QuantumSecretVault.recover_vault(temp_dir, passphrase) 
+                QuantumSecretVault.recover_vault(temp_dir, password) 
     
     def test_layered_encryption_verification_in_shamir(self):
         """
         Verify that layered encryption is properly applied to each Shamir share.
         This demonstrates exactly where and how each encryption layer is applied.
         """
-        seed = "test secret for verification"
-        passphrase = "test_passphrase"
+        secret = "test secret for verification"
+        password = "test_password"
         
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create vault with full layered encryption + Shamir
@@ -221,7 +221,7 @@ class TestVaultIntegration:
                 shamir_threshold=3,
                 shamir_total=5,
                 parity_shares=2,
-                passphrase=passphrase,
+                password=password,
                 salt=os.urandom(32),
                 argon2_memory_cost=65536,  # Lower for test speed
                 argon2_time_cost=3,
@@ -229,7 +229,7 @@ class TestVaultIntegration:
             )
             
             vault = QuantumSecretVault(config)
-            result = vault.create_vault(seed, temp_dir)
+            result = vault.create_vault(secret, temp_dir)
             
             # Verify vault creation
             assert result["vault_created"] is True
@@ -281,8 +281,8 @@ class TestVaultIntegration:
             assert isinstance(share_raw_data, bytes)
             
             # Test recovery to verify all layers work correctly
-            recovered_seed = QuantumSecretVault.recover_vault(temp_dir, passphrase)
-            assert recovered_seed == seed
+            recovered_secret = QuantumSecretVault.recover_vault(temp_dir, password)
+            assert recovered_secret == secret
             
             # Test that we can recover with any subset of threshold shares
             shares_dir = os.path.join(temp_dir, "shares")
@@ -302,16 +302,16 @@ class TestVaultIntegration:
                             dst.write(src.read())
                     
                     # Verify recovery works with this subset
-                    subset_recovered = QuantumSecretVault.recover_vault(subset_dir, passphrase)
-                    assert subset_recovered == seed
+                    subset_recovered = QuantumSecretVault.recover_vault(subset_dir, password)
+                    assert subset_recovered == secret
     
     def test_share_contains_full_encryption_proof(self):
         """
         Prove that each share contains the FULL encrypted data, not just a piece.
         This test demonstrates that Shamir splitting happens AFTER encryption.
         """
-        seed = "proof that shares contain full encryption"
-        passphrase = "proof_pass"
+        secret = "proof that shares contain full encryption"
+        password = "proof_pass"
         
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create a single salt to use for both configs for comparison
@@ -320,28 +320,28 @@ class TestVaultIntegration:
             # Test with just standard encryption first (no Shamir)
             config_no_shamir = SecurityConfig(
                 layers=[SecurityLayer.STANDARD_ENCRYPTION],
-                passphrase=passphrase,
+                password=password,
                 salt=shared_salt,
                 argon2_memory_cost=65536,
                 argon2_time_cost=3
             )
             
             vault_no_shamir = QuantumSecretVault(config_no_shamir)
-            result_no_shamir = vault_no_shamir.create_vault(seed, f"{temp_dir}/no_shamir")
+            result_no_shamir = vault_no_shamir.create_vault(secret, f"{temp_dir}/no_shamir")
             
             # Now test with standard + Shamir (using the same salt)
             config_with_shamir = SecurityConfig(
                 layers=[SecurityLayer.STANDARD_ENCRYPTION, SecurityLayer.SHAMIR_SHARING],
                 shamir_threshold=3,
                 shamir_total=5,
-                passphrase=passphrase,
+                password=password,
                 salt=shared_salt,  # Use same salt for comparison
                 argon2_memory_cost=65536,
                 argon2_time_cost=3
             )
             
             vault_with_shamir = QuantumSecretVault(config_with_shamir)
-            result_with_shamir = vault_with_shamir.create_vault(seed, f"{temp_dir}/with_shamir")
+            result_with_shamir = vault_with_shamir.create_vault(secret, f"{temp_dir}/with_shamir")
             
             # Load the single encrypted file
             with open(f"{temp_dir}/no_shamir/vault.bin", 'rb') as f:
@@ -359,13 +359,13 @@ class TestVaultIntegration:
             assert single_std_layer['metadata']['salt'] == share_std_layer['metadata']['salt']
             assert single_std_layer['metadata']['encryption_type'] == share_std_layer['metadata']['encryption_type']
             
-            # Both should recover to the same seed
-            recovered_single = QuantumSecretVault.recover_vault(f"{temp_dir}/no_shamir", passphrase)
-            recovered_shares = QuantumSecretVault.recover_vault(f"{temp_dir}/with_shamir", passphrase)
+            # Both should recover to the same secret
+            recovered_single = QuantumSecretVault.recover_vault(f"{temp_dir}/no_shamir", password)
+            recovered_shares = QuantumSecretVault.recover_vault(f"{temp_dir}/with_shamir", password)
             
-            assert recovered_single == seed
-            assert recovered_shares == seed
+            assert recovered_single == secret
+            assert recovered_shares == secret
             assert recovered_single == recovered_shares
             
             # This proves that Shamir shares contain the SAME encrypted data,
-            # just split using Shamir's algorithm 
+            # just split using Shamir's algorithm
