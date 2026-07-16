@@ -111,7 +111,7 @@ Write-Host "[OK] Secure image ready: $DOCKER_IMAGE" -ForegroundColor Green
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
 Write-Host "1. Disconnect from internet (air-gap your system)" -ForegroundColor Yellow
-Write-Host "2. Run: .\secure_vault_workflow.ps1" -ForegroundColor Yellow
+Write-Host "2. Run: .\secure_run.ps1" -ForegroundColor Yellow
 Write-Host "3. After operations, reconnect to internet" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "[SECURITY] Remember to:" -ForegroundColor Cyan
