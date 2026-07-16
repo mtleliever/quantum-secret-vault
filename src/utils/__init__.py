@@ -15,6 +15,11 @@ from .file_utils import (
     secure_zero_bytearray,
     secure_delete_string  # Deprecated, kept for backward compatibility
 )
+from .address_derivation import (
+    derive_addresses,
+    format_address_log,
+    is_bip39_mnemonic,
+)
 
 __all__ = [
     'validate_secret',
@@ -28,5 +33,8 @@ __all__ = [
     'PathTraversalError',
     'SecureBytes',
     'secure_zero_bytearray',
-    'secure_delete_string'
+    'secure_delete_string',
+    'derive_addresses',
+    'format_address_log',
+    'is_bip39_mnemonic',
 ]

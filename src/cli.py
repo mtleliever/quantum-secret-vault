@@ -10,6 +10,11 @@ import base64
 from typing import List
 from .core import QuantumSecretVault, SecurityConfig, SecurityLayer
 from .utils.validation import validate_secret, validate_password
+from .utils.address_derivation import (
+    derive_addresses,
+    format_address_log,
+    is_bip39_mnemonic,
+)
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
@@ -147,6 +152,15 @@ def recover_vault(args: argparse.Namespace) -> None:
     except Exception as e:
         print(f"[!] Decryption failed: {e}", file=sys.stderr)
         sys.exit(1)
+
+    try:
+        if is_bip39_mnemonic(secret):
+            addresses = derive_addresses(secret)
+            print(format_address_log(addresses))
+        else:
+            print("\n[*] Recovered secret is not a BIP-39 mnemonic; skipping address derivation.")
+    except Exception as e:
+        print(f"\n[!] Address derivation failed: {e}", file=sys.stderr)
 
 def main():
     """Main entry point."""
