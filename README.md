@@ -17,51 +17,74 @@ A secure toolkit to encrypt text secrets using **layered security** with **quant
 ## Quick Start
 
 ### Prerequisites
-- Docker
+- [Docker](https://docs.docker.com/get-docker/) (Docker Desktop on macOS / Windows)
 
 ### Create a Vault
 
-```powershell
-# Basic encryption
-.\run.ps1 create "my secret text" "mypassword" standard_encryption
+Omit the password to be prompted securely (recommended — keeps it out of shell history).
+
+**macOS / Linux:**
+```bash
+# Basic encryption (prompts for password)
+./run.sh create "my secret text" standard_encryption
 
 # Quantum-resistant encryption
-.\run.ps1 create "my secret text" "mypassword" standard_encryption quantum_encryption
+./run.sh create "my secret text" standard_encryption quantum_encryption
 
 # Maximum security with Shamir sharing (3-of-5 shares)
-.\run.ps1 create "my secret text" "mypassword" standard_encryption quantum_encryption shamir_sharing --shamir 3 5
+./run.sh create "my secret text" standard_encryption quantum_encryption shamir_sharing --shamir 3 5
+```
+
+**Windows (PowerShell):**
+```powershell
+# Basic encryption (prompts for password)
+.\run.ps1 create "my secret text" standard_encryption
+
+# Quantum-resistant encryption
+.\run.ps1 create "my secret text" standard_encryption quantum_encryption
+
+# Maximum security with Shamir sharing (3-of-5 shares)
+.\run.ps1 create "my secret text" standard_encryption quantum_encryption shamir_sharing --shamir 3 5
 ```
 
 ### Recover a Vault
 
-```powershell
-.\run.ps1 recover vault_output "mypassword"
+**macOS / Linux:**
+```bash
+./run.sh recover vault_output
 ```
 
+**Windows (PowerShell):**
+```powershell
+.\run.ps1 recover vault_output
+```
+
+You will be prompted for the password. For scripting, you can still pass it as an argument, or set `VAULT_PASSWORD`.
 ---
 
 ## Security Levels
 
 ### Standard (Fast)
-```powershell
-.\run.ps1 create "secret" "password" standard_encryption
+```bash
+./run.sh create "secret" standard_encryption
 ```
 
 ### High Security (1GB memory, 12 iterations)
-```powershell
-.\run.ps1 create "secret" "password" standard_encryption quantum_encryption --memory 1048576 --time 12 --threads 4
+```bash
+./run.sh create "secret" standard_encryption quantum_encryption --memory 1048576 --time 12 --threads 4
 ```
 
 ### Maximum Security (4GB memory, 20 iterations)
-```powershell
-.\run.ps1 create "secret" "password" standard_encryption quantum_encryption --memory 4194304 --time 20 --threads 8
+```bash
+./run.sh create "secret" standard_encryption quantum_encryption --memory 4194304 --time 20 --threads 8
 ```
 
 ### Maximum + Geographic Distribution
-```powershell
-.\run.ps1 create "secret" "password" standard_encryption quantum_encryption shamir_sharing --memory 4194304 --time 20 --threads 8 --shamir 3 5
+```bash
+./run.sh create "secret" standard_encryption quantum_encryption shamir_sharing --memory 4194304 --time 20 --threads 8 --shamir 3 5
 ```
 
+> On Windows, use `.\run.ps1` with the same arguments. Password is prompted if omitted.
 ---
 
 ## Argon2 Parameters
@@ -80,6 +103,18 @@ Higher values = stronger security but slower encryption/decryption.
 
 For maximum security, use the air-gapped workflow:
 
+**macOS / Linux:**
+```bash
+# 1. Build the secure image (while online)
+./build_secure_image.sh
+
+# 2. Disconnect from internet (disable Wi-Fi / unplug Ethernet)
+
+# 3. Run secure workflow (prompts for input securely)
+./secure_run.sh
+```
+
+**Windows (PowerShell):**
 ```powershell
 # 1. Build the secure image (while online)
 .\build_secure_image.ps1
@@ -119,6 +154,12 @@ vault_output/
 
 ## Testing
 
+**macOS / Linux:**
+```bash
+./test.sh
+```
+
+**Windows (PowerShell):**
 ```powershell
 .\test.ps1
 ```
